@@ -47,7 +47,7 @@ func (c *IPFSConnector) GetFile(cid path.Resolved, outputPath string) error {
 
 func (c *IPFSConnector) GetFileByBlocks(cid path.Resolved) error {
 	// get the cid node from the IPFS
-	rootNodeFile, err := c.api.ResolveNode(c.ctx, cid)
+	rootNodeFile, err := c.ResolveNode(c.ctx, cid)
 	if err != nil {
 		return err
 	}
