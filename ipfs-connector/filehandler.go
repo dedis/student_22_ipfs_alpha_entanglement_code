@@ -1,6 +1,8 @@
 package ipfsconnector
 
 import (
+	"fmt"
+	"ipfs-alpha-entanglement-code/util"
 	"os"
 
 	files "github.com/ipfs/go-ipfs-files"
@@ -41,4 +43,28 @@ func (c *IPFSConnector) GetFile(cid path.Resolved, outputPath string) error {
 	err = files.WriteTo(rootNodeFile, outputPath)
 
 	return err
+}
+
+func (c *IPFSConnector) GetFileByBlocks(cid path.Resolved) error {
+	// get the cid node from the IPFS
+	rootNodeFile, err := c.api.ResolveNode(c.ctx, cid)
+	if err != nil {
+		return err
+	}
+
+	nodeStat, err := rootNodeFile.Stat()
+	if err != nil {
+		return err
+	}
+	fmt.Println(util.Red(nodeStat.DataSize), cid.String(), len(rootNodeFile.Links()))
+
+	// Iterate all links that this block points to
+	for _, link := range rootNodeFile.Links() {
+		err = c.GetFileByBlocks(path.IpfsPath(link.Cid))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

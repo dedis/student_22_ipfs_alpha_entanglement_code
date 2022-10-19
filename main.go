@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
+	"ipfs-alpha-entanglement-code/util"
 )
 
 func main() {
@@ -13,17 +14,23 @@ func main() {
 	defer connector.Stop()
 
 	// test add file
-	cid, err := connector.AddFile("README.md")
+	cid, err := connector.AddFile("test/largeFile.txt")
 	if err != nil {
 		panic(fmt.Errorf("could not add File: %s", err))
 	}
-	fmt.Printf("Added file to IPFS with CID %s\n", cid.String())
+	fmt.Printf(util.White("Added file to IPFS with CID %s\n"), cid.String())
 
 	// test read file
-	err = connector.GetFile(cid, "./test.md")
-	if err != nil {
-		panic(fmt.Errorf("could not get file with CID: %s", err))
-	}
-	fmt.Printf("Got file to IPFS with CID %s\n", cid.String())
+	//err = connector.GetFile(cid, "test.md")
+	//if err != nil {
+	//	panic(fmt.Errorf("could not get file with CID: %s", err))
+	//}
+	//fmt.Printf("Got file to IPFS with CID %s\n", cid.String())
 
+	// test read files by block
+	err = connector.GetFileByBlocks(cid)
+	if err != nil {
+		panic(fmt.Errorf("could not get file by block with CID: %s", err))
+	}
+	fmt.Printf(util.White("Read blocks in IPFS with CID %s\n"), cid.String())
 }
