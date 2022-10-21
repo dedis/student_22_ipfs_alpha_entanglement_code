@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+// IPFSConnector manages all the interaction with IPFS node
 type IPFSConnector struct {
 	icore.CoreAPI
 	node *core.IpfsNode

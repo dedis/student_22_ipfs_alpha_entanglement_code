@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
+	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
-
 	"ipfs-alpha-entanglement-code/util"
 )
 
@@ -37,11 +37,26 @@ func main() {
 	// fmt.Printf(util.White("Read blocks in IPFS with CID %s\n"), cid.String())
 
 	// test merkle tree
-	// tangler := entangler.Entangler{Alpha: 3, S: 5, P: 5, ChunkSize: 1048}
 	root, err := connector.GetMerkleTree(cid)
 	if err != nil {
 		panic(fmt.Errorf("could not read merkle tree: %s", err))
 	}
-	nodes := root.GetFlattenedTree(5, 5)
-	fmt.Printf(util.White("Number of nodes in the merkle tree is %d"), len(nodes))
+	nodes := root.GetFlattenedTree(1, 2)
+	fmt.Printf(util.White("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
+	for _, node := range nodes {
+		fmt.Printf(util.Green(" %d"), node.PostOrderIdx)
+	}
+	fmt.Println()
+
+	// test entanglement
+	data := make([][]byte, len(nodes))
+	maxSize := 0
+	for i, node := range nodes {
+		data[i] = node.Data
+		if maxSize < len(node.Data) {
+			maxSize = len(node.Data)
+		}
+	}
+	tangler := entangler.NewEntangler(3, 5, 5, maxSize)
+	tangler.Entangle(data)
 }

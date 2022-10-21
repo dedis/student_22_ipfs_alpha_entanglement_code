@@ -1,7 +1,8 @@
 package ipfsconnector
 
-// TODO: consider DAG? Multiple Parents?
+// TreeNode implements a node in IPLD Merkle Tree
 type TreeNode struct {
+	// TODO: consider DAG? Multiple Parents?
 	Data         []byte
 	Children     []*TreeNode
 	Parent       *TreeNode
@@ -10,6 +11,7 @@ type TreeNode struct {
 	PostOrderIdx int
 }
 
+// CreateTreeNode is the constructor of TreeNode
 func CreateTreeNode(data []byte) *TreeNode {
 	n := TreeNode{Data: data, Parent: nil}
 	n.Children = make([]*TreeNode, 0)
@@ -18,6 +20,7 @@ func CreateTreeNode(data []byte) *TreeNode {
 	return &n
 }
 
+// AddChild links a child to the current node
 func (n *TreeNode) AddChild(child *TreeNode) {
 	n.Children = append(n.Children, child)
 	n.TreeSize += child.TreeSize
@@ -25,6 +28,7 @@ func (n *TreeNode) AddChild(child *TreeNode) {
 	child.Depth = n.Depth + 1
 }
 
+// GetFlattenedTree removes dependencies inside lattice windows and returns an array of tree nodes
 func (n *TreeNode) GetFlattenedTree(s int, p int) []*TreeNode {
 	nodes := make([]*TreeNode, n.TreeSize)
 
