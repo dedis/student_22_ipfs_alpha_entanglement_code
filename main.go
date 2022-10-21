@@ -57,6 +57,6 @@ func main() {
 			maxSize = len(node.Data)
 		}
 	}
-	tangler := entangler.NewEntangler(3, 5, 5, maxSize)
-	tangler.Entangle(data)
+	tangler := entangler.NewEntangler(3, 5, 5, maxSize, &data)
+	tangler.GetEntanglement()
 }

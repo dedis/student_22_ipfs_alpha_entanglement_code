@@ -1,6 +1,8 @@
 package entangler
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Position defines which position category the original block belongs
 type PositionClass int8
@@ -35,72 +37,131 @@ type Entangler struct {
 	P         int
 	ChunkSize int
 
-	cachedParityH  [][]byte
-	cachedParityRH [][]byte
-	cachedParityLH [][]byte
+	OriginData [][]byte
+	HParities  []*EntangledBlock
+	RHParities []*EntangledBlock
+	LHParities []*EntangledBlock
+
+	cachedParityH  []*EntangledBlock
+	cachedParityRH []*EntangledBlock
+	cachedParityLH []*EntangledBlock
 }
 
-func NewEntangler(alpha int, s int, p int, chunkSize int) (entangler *Entangler) {
+func NewEntangler(alpha int, s int, p int, chunkSize int, data *[][]byte) (entangler *Entangler) {
 	entangler = &Entangler{Alpha: alpha, S: s, P: p, ChunkSize: chunkSize}
-	entangler.cachedParityH = make([][]byte, s)
-	entangler.cachedParityRH = make([][]byte, p)
-	entangler.cachedParityLH = make([][]byte, p)
+
+	entangler.OriginData = *data
+	entangler.HParities = make([]*EntangledBlock, len(*data))
+	entangler.RHParities = make([]*EntangledBlock, len(*data))
+	entangler.LHParities = make([]*EntangledBlock, len(*data))
+
+	entangler.cachedParityH = make([]*EntangledBlock, s)
+	entangler.cachedParityRH = make([]*EntangledBlock, p)
+	entangler.cachedParityLH = make([]*EntangledBlock, p)
+
+	return
+}
+
+// GetEntanglement returns the entangled blocks in different strands
+func (e *Entangler) GetEntanglement() (HParities, RHParities, LHParities []*EntangledBlock) {
+	if len(e.HParities) == 0 || len(e.RHParities) == 0 || len(e.LHParities) == 0 {
+		// lazy entangle
+		e.Entangle()
+	}
+	HParities = e.HParities
+	RHParities = e.RHParities
+	LHParities = e.LHParities
 
 	return
 }
 
 // Entangle generate the entangelement for the given arrray of blocks
-func (e *Entangler) Entangle(blocks [][]byte) (HParities, RHParities, LHParities []*EntangledBlock) {
-	HParities = make([]*EntangledBlock, len(blocks))
-	RHParities = make([]*EntangledBlock, len(blocks))
-	LHParities = make([]*EntangledBlock, len(blocks))
-
+func (e *Entangler) Entangle() {
 	// generate the lattice
-	for i, block := range blocks {
-		hBlock, rBlock, lBlock := e.EntangleSingleBlock(i+1, block)
-		HParities[i] = hBlock
-		RHParities[i] = rBlock
-		LHParities[i] = lBlock
+	for i, block := range e.OriginData {
+		e.EntangleSingleBlock(i+1, block)
 	}
 
-	// TODO: wraps the lattice
-
-	return
+	// wraps the lattice
+	e.WrapLattice()
 }
 
 // EntangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
-func (e *Entangler) EntangleSingleBlock(index int, data []byte) (hBlock, rBlock, lBlock *EntangledBlock) {
+// It should be called in the correct order to ensure the correctness of cached blocks
+func (e *Entangler) EntangleSingleBlock(index int, data []byte) {
 	// read parity block from cache
-	hCached, rCached, lCached := e.GetCachedPosition(index)
-	hParityBytes := e.cachedParityH[hCached]
-	rParityBytes := e.cachedParityRH[rCached]
-	lParityBytes := e.cachedParityLH[lCached]
+	hCached, rCached, lCached := e.GetChainIndexes(index)
+	hPrev := e.cachedParityH[hCached]
+	rPrev := e.cachedParityRH[rCached]
+	lPrev := e.cachedParityLH[lCached]
 
-	// generate new parity block and cache
-	hNext := e.XORBlockData(data, hParityBytes)
-	e.cachedParityRH[hCached] = hNext
-	rNext := e.XORBlockData(data, rParityBytes)
-	e.cachedParityRH[rCached] = rNext
-	lNext := e.XORBlockData(data, lParityBytes)
-	e.cachedParityRH[lCached] = lNext
+	// generate new parity block
+	hParityData := e.XORBlockData(data, hPrev.Data)
+	rParityData := e.XORBlockData(data, rPrev.Data)
+	lParityData := e.XORBlockData(data, lPrev.Data)
 
-	// generate entangled block
-	hIndex, rIndex, lIndex := e.GetForwardNeighborsIndex(index)
-	hBlock = &EntangledBlock{
+	// generate, cache and store entangled block
+	hIndex, rIndex, lIndex := e.GetForwardNeighborIndexes(index)
+	hNext := &EntangledBlock{
 		LeftBlockIndex: index, RightBlockIndex: hIndex,
-		Data: hNext, Strand: Horizontal}
-	rBlock = &EntangledBlock{LeftBlockIndex: index, RightBlockIndex: rIndex,
-		Data: rNext, Strand: Right}
-	lBlock = &EntangledBlock{LeftBlockIndex: index, RightBlockIndex: lIndex,
-		Data: lNext, Strand: Left}
+		Data: hParityData, Strand: Horizontal}
+	e.cachedParityRH[hCached] = hNext
+	e.HParities[index-1] = hNext
+	rNext := &EntangledBlock{
+		LeftBlockIndex: index, RightBlockIndex: rIndex,
+		Data: rParityData, Strand: Right}
+	e.cachedParityRH[rCached] = rNext
+	e.RHParities[index-1] = rNext
+	lNext := &EntangledBlock{
+		LeftBlockIndex: index, RightBlockIndex: lIndex,
+		Data: lParityData, Strand: Left}
+	e.cachedParityRH[lCached] = lNext
+	e.LHParities[index-1] = lNext
+}
 
-	return
+func (e *Entangler) WrapLattice() {
+	for _, parityNode := range e.cachedParityH {
+		// Link the last parity block to the first data block of the chain
+		h, _, _ := e.GetChainStartPosition(parityNode.RightBlockIndex)
+		index := h + 1
+		parityNode.LeftBlockIndex = index
+		// Recompute the first parity block
+		hIndex, _, _ := e.GetForwardNeighborIndexes(index)
+		rNext := &EntangledBlock{
+			LeftBlockIndex: index, RightBlockIndex: hIndex,
+			Data: e.XORBlockData(e.OriginData[h], parityNode.Data), Strand: Horizontal}
+		e.HParities[h] = rNext
+	}
+	for _, parityNode := range e.cachedParityRH {
+		// Link the last parity block to the first data block of the chain
+		_, r, _ := e.GetChainStartPosition(parityNode.RightBlockIndex)
+		index := r + 1
+		parityNode.LeftBlockIndex = index
+		// Recompute the first parity block
+		_, rIndex, _ := e.GetForwardNeighborIndexes(index)
+		rNext := &EntangledBlock{
+			LeftBlockIndex: index, RightBlockIndex: rIndex,
+			Data: e.XORBlockData(e.OriginData[r], parityNode.Data), Strand: Horizontal}
+		e.HParities[r] = rNext
+	}
+	for _, parityNode := range e.cachedParityH {
+		// Link the last parity block to the first data block of the chain
+		_, _, l := e.GetChainStartPosition(parityNode.RightBlockIndex)
+		index := l + 1
+		parityNode.LeftBlockIndex = index
+		// Recompute the first parity block
+		_, _, lIndex := e.GetForwardNeighborIndexes(index)
+		rNext := &EntangledBlock{
+			LeftBlockIndex: index, RightBlockIndex: lIndex,
+			Data: e.XORBlockData(e.OriginData[l], parityNode.Data), Strand: Horizontal}
+		e.HParities[l] = rNext
+	}
 }
 
 // GetPositionCategory determines which category the node belongs. Top, Bottom or Central
 func (e *Entangler) GetPositionCategory(index int) PositionClass {
 	nodePos := index % e.S
-	if nodePos == -1 || nodePos == -4 {
+	if nodePos == 1 || nodePos == 1-e.S {
 		return Top
 	} else if nodePos == 0 {
 		return Bottom
@@ -108,8 +169,8 @@ func (e *Entangler) GetPositionCategory(index int) PositionClass {
 	return Central
 }
 
-// GetCachedPosition reads the cached backward parity neighbors of the current indexed node
-func (e *Entangler) GetCachedPosition(index int) (h, rh, lh int) {
+// GetChainIndexes reads the cached backward parity neighbors of the current indexed node
+func (e *Entangler) GetChainIndexes(index int) (h, rh, lh int) {
 	h = (index - 1) % e.S
 
 	indexInWindow := (index - 1) % (e.S * e.P)
@@ -122,8 +183,14 @@ func (e *Entangler) GetCachedPosition(index int) (h, rh, lh int) {
 	return
 }
 
-// GetBackwardNeighborsIndex returns the index of backward neighbors that can be entangled with current node
-func (e *Entangler) GetBackwardNeighborsIndex(index int) (h, rh, lh int) {
+// GetChainStartIndexes returns the position of the first node on the chain where the indexed node is on
+func (e *Entangler) GetChainStartPosition(index int) (h, rh, lh int) {
+	// TODO: Check if the first node index is calculated correctly
+	return e.GetChainIndexes(index)
+}
+
+// GetBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
+func (e *Entangler) GetBackwardNeighborIndexes(index int) (h, rh, lh int) {
 	if e.Alpha != 3 {
 		panic(fmt.Errorf("alpha should equal 3"))
 	}
@@ -148,8 +215,8 @@ func (e *Entangler) GetBackwardNeighborsIndex(index int) (h, rh, lh int) {
 	return
 }
 
-// GetForwardNeighborsIndex returns the index of forward neighbors that is the entangled output of current node
-func (e *Entangler) GetForwardNeighborsIndex(index int) (h, rh, lh int) {
+// GetForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
+func (e *Entangler) GetForwardNeighborIndexes(index int) (h, rh, lh int) {
 	if e.Alpha != 3 {
 		panic(fmt.Errorf("alpha should equal 3"))
 	}
@@ -175,6 +242,13 @@ func (e *Entangler) GetForwardNeighborsIndex(index int) (h, rh, lh int) {
 }
 
 func (e *Entangler) XORBlockData(data1 []byte, data2 []byte) (result []byte) {
+	if len(data1) == 0 {
+		return e.PaddedData(&data2)
+	}
+	if len(data2) == 0 {
+		return e.PaddedData(&data1)
+	}
+
 	padded1 := e.PaddedData(&data1)
 	padded2 := e.PaddedData(&data2)
 
