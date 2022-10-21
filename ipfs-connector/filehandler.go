@@ -45,6 +45,7 @@ func (c *IPFSConnector) GetFile(cid path.Resolved, outputPath string) error {
 	return err
 }
 
+// GetFileByBlocks takes the file CID and returns a slice of blocks at the leaves of the Merkle tree
 func (c *IPFSConnector) GetFileByBlocks(cid path.Resolved) error {
 	// get the cid node from the IPFS
 	rootNodeFile, err := c.ResolveNode(c.ctx, cid)
@@ -60,11 +61,42 @@ func (c *IPFSConnector) GetFileByBlocks(cid path.Resolved) error {
 
 	// Iterate all links that this block points to
 	for _, link := range rootNodeFile.Links() {
-		err = c.GetFileByBlocks(path.IpfsPath(link.Cid))
+		err := c.GetFileByBlocks(path.IpfsPath(link.Cid))
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
+}
+
+// GetMerkleTree takes the Merkle tree root CID, constructs the tree and returns the root node
+func (c *IPFSConnector) GetMerkleTree(cid path.Resolved) (*TreeNode, error) {
+	currIdx := 0
+	var getMerkleNode func(path.Resolved) (*TreeNode, error)
+	getMerkleNode = func(cid path.Resolved) (*TreeNode, error) {
+		// get the cid node from the IPFS
+		rootNodeFile, err := c.ResolveNode(c.ctx, cid)
+		if err != nil {
+			return nil, err
+		}
+
+		rootNode := CreateTreeNode(rootNodeFile.RawData())
+
+		// iterate all links that this block points to
+		for _, link := range rootNodeFile.Links() {
+			childNode, err := getMerkleNode(path.IpfsPath(link.Cid))
+			if err != nil {
+				return nil, err
+			}
+			rootNode.AddChild(childNode)
+		}
+
+		// update node idx
+		rootNode.PostOrderIdx = currIdx
+		currIdx++
+
+		return rootNode, nil
+	}
+
+	return getMerkleNode(cid)
 }

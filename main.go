@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
+
 	"ipfs-alpha-entanglement-code/util"
 )
 
@@ -28,9 +30,18 @@ func main() {
 	//fmt.Printf("Got file to IPFS with CID %s\n", cid.String())
 
 	// test read files by block
-	err = connector.GetFileByBlocks(cid)
+	// err = connector.GetFileByBlocks(cid)
+	// if err != nil {
+	// 	panic(fmt.Errorf("could not get file by block with CID: %s", err))
+	// }
+	// fmt.Printf(util.White("Read blocks in IPFS with CID %s\n"), cid.String())
+
+	// test merkle tree
+	// tangler := entangler.Entangler{Alpha: 3, S: 5, P: 5, ChunkSize: 1048}
+	root, err := connector.GetMerkleTree(cid)
 	if err != nil {
-		panic(fmt.Errorf("could not get file by block with CID: %s", err))
+		panic(fmt.Errorf("could not read merkle tree: %s", err))
 	}
-	fmt.Printf(util.White("Read blocks in IPFS with CID %s\n"), cid.String())
+	nodes := root.GetFlattenedTree(5, 5)
+	fmt.Printf(util.White("Number of nodes in the merkle tree is %d"), len(nodes))
 }
