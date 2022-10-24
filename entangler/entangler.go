@@ -1,6 +1,7 @@
 package entangler
 
 import (
+	"fmt"
 	"ipfs-alpha-entanglement-code/util"
 )
 
@@ -14,20 +15,20 @@ const (
 )
 
 // Strand defines which strand the entangled block belongs
-type StrandClass int
+// type StrandClass int
 
-const (
-	Horizontal StrandClass = iota
-	Right
-	Left
-)
+// const (
+// 	Horizontal StrandClass = iota
+// 	Right
+// 	Left
+// )
 
 // EntangledBlock is the parity block output by alpha entanglement code
 type EntangledBlock struct {
 	LeftBlockIndex  int
 	RightBlockIndex int
 	Data            []byte
-	Strand          StrandClass
+	Strand          int
 }
 
 // Entangler manages all the entanglement related behaviors
@@ -38,14 +39,10 @@ type Entangler struct {
 	ChunkSize   int
 	TotalChunks int
 
-	OriginData [][]byte
-	HParities  []*EntangledBlock
-	RHParities []*EntangledBlock
-	LHParities []*EntangledBlock
+	OriginData   [][]byte
+	ParityBlocks [][]*EntangledBlock
 
-	cachedParityH   []*EntangledBlock
-	cachedParityRH  []*EntangledBlock
-	cachedParityLH  []*EntangledBlock
+	cachedParities  [][]*EntangledBlock
 	rightMostBlocks []*EntangledBlock
 
 	finished bool
@@ -70,9 +67,9 @@ func (e *Entangler) GetEntanglement() (HParities, RHParities, LHParities []*Enta
 		e.finished = true
 		util.LogPrint("Finish entangling\n")
 	}
-	HParities = e.HParities
-	RHParities = e.RHParities
-	LHParities = e.LHParities
+	HParities = e.ParityBlocks[0]
+	RHParities = e.ParityBlocks[1]
+	LHParities = e.ParityBlocks[2]
 
 	return
 }
@@ -96,29 +93,26 @@ func (e *Entangler) Entangle() {
 
 // PrepareEntangle prepares the data structure that will be used for entanglement
 func (e *Entangler) PrepareEntangle() {
-	e.HParities = make([]*EntangledBlock, len(e.OriginData))
-	e.RHParities = make([]*EntangledBlock, len(e.OriginData))
-	e.LHParities = make([]*EntangledBlock, len(e.OriginData))
+	e.ParityBlocks = make([][]*EntangledBlock, e.Alpha)
+	for k := 0; k < e.Alpha; k++ {
+		e.ParityBlocks[k] = make([]*EntangledBlock, e.TotalChunks)
+	}
 
-	cachedParityH := make([]*EntangledBlock, e.S)
-	cachedParityRH := make([]*EntangledBlock, e.P)
-	cachedParityLH := make([]*EntangledBlock, e.P)
+	e.cachedParities = make([][]*EntangledBlock, e.Alpha)
+	e.cachedParities[0] = make([]*EntangledBlock, e.S)
 	for i := 0; i < e.S; i++ {
-		cachedParityH[i] = &EntangledBlock{
+		e.cachedParities[0][i] = &EntangledBlock{
 			LeftBlockIndex: 0, RightBlockIndex: 0,
-			Data: make([]byte, e.ChunkSize), Strand: Horizontal}
+			Data: make([]byte, e.ChunkSize), Strand: 0}
 	}
-	for i := 0; i < e.P; i++ {
-		cachedParityRH[i] = &EntangledBlock{
-			LeftBlockIndex: 0, RightBlockIndex: 0,
-			Data: make([]byte, e.ChunkSize), Strand: Right}
-		cachedParityLH[i] = &EntangledBlock{
-			LeftBlockIndex: 0, RightBlockIndex: 0,
-			Data: make([]byte, e.ChunkSize), Strand: Left}
+	for k := 1; k < e.Alpha; k++ {
+		e.cachedParities[k] = make([]*EntangledBlock, e.P)
+		for i := 0; i < e.P; i++ {
+			e.cachedParities[k][i] = &EntangledBlock{
+				LeftBlockIndex: 0, RightBlockIndex: 0,
+				Data: make([]byte, e.ChunkSize), Strand: k}
+		}
 	}
-	e.cachedParityH = cachedParityH
-	e.cachedParityRH = cachedParityRH
-	e.cachedParityLH = cachedParityLH
 
 	e.rightMostBlocks = make([]*EntangledBlock, 0)
 }
@@ -126,83 +120,41 @@ func (e *Entangler) PrepareEntangle() {
 // EntangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
 // It should be called in the correct order to ensure the correctness of cached blocks
 func (e *Entangler) EntangleSingleBlock(index int, data []byte) {
-	// read parity block from cache
-	hCached, rCached, lCached := e.GetChainIndexes(index)
-	hPrev := e.cachedParityH[hCached]
-	rPrev := e.cachedParityRH[rCached]
-	lPrev := e.cachedParityLH[lCached]
+	cachePos := e.GetChainIndexes(index)
+	rIndexes := e.GetForwardNeighborIndexes(index)
 
-	// generate new parity block
-	hParityData := e.XORBlockData(data, hPrev.Data)
-	rParityData := e.XORBlockData(data, rPrev.Data)
-	lParityData := e.XORBlockData(data, lPrev.Data)
-
-	// generate, cache and store entangled block
-	hIndex, rIndex, lIndex := e.GetForwardNeighborIndexes(index)
-	hNext := &EntangledBlock{
-		LeftBlockIndex: index, RightBlockIndex: hIndex,
-		Data: hParityData, Strand: Horizontal}
-	e.cachedParityH[hCached] = hNext
-	e.HParities[index-1] = hNext
-	rNext := &EntangledBlock{
-		LeftBlockIndex: index, RightBlockIndex: rIndex,
-		Data: rParityData, Strand: Right}
-	e.cachedParityRH[rCached] = rNext
-	e.RHParities[index-1] = rNext
-	lNext := &EntangledBlock{
-		LeftBlockIndex: index, RightBlockIndex: lIndex,
-		Data: lParityData, Strand: Left}
-	e.cachedParityLH[lCached] = lNext
-	e.LHParities[index-1] = lNext
+	for k := 0; k < e.Alpha; k++ {
+		// read parity block from cache
+		prevBlock := e.cachedParities[k][cachePos[k]]
+		// generate new parity block
+		parityData := e.XORBlockData(data, prevBlock.Data)
+		// generate, cache and store entangled block
+		nextBlock := &EntangledBlock{
+			LeftBlockIndex: index, RightBlockIndex: rIndexes[k],
+			Data: parityData, Strand: k}
+		e.cachedParities[k][cachePos[k]] = nextBlock
+		e.ParityBlocks[k][index-1] = nextBlock
+	}
 }
 
 func (e *Entangler) WrapLattice() {
-	for _, parityNode := range e.cachedParityH {
-		// Link the last parity block to the first data block of the chain
-		index, _, _ := e.GetChainStartIndex(parityNode.RightBlockIndex)
-		parityNode.RightBlockIndex = index
-		// Recompute the first parity block
-		hIndex, _, _ := e.GetForwardNeighborIndexes(index)
-		if e.CheckValid(hIndex) {
-			// the first block is not the rightmost block
-			rNext := &EntangledBlock{
-				LeftBlockIndex: index, RightBlockIndex: hIndex,
-				Data: e.XORBlockData(e.OriginData[index-1], parityNode.Data), Strand: Horizontal}
-			e.HParities[index-1] = rNext
+	for k, cacheParity := range e.cachedParities {
+		for _, parityNode := range cacheParity {
+			// Link the last parity block to the first data block of the chain
+			index := e.GetChainStartIndexes(parityNode.RightBlockIndex)[k]
+			parityNode.RightBlockIndex = index
+			// Recompute the first parity block
+			rIndex := e.GetForwardNeighborIndexes(index)[k]
+			if e.CheckValid(rIndex) {
+				// the first block is not the rightmost block
+				rNext := &EntangledBlock{
+					LeftBlockIndex: index, RightBlockIndex: rIndex,
+					Data: e.XORBlockData(e.OriginData[index-1], parityNode.Data), Strand: k}
+				e.ParityBlocks[k][index-1] = rNext
+			}
 		}
+		fmt.Println()
 	}
-	util.LogPrint("Finish wrapping horizontal strand\n")
-	for _, parityNode := range e.cachedParityRH {
-		// Link the last parity block to the first data block of the chain
-		_, index, _ := e.GetChainStartIndex(parityNode.RightBlockIndex)
-		parityNode.RightBlockIndex = index
-		// fmt.Println(parityNode.LeftBlockIndex, parityNode.RightBlockIndex, r)
-		// Recompute the first parity block
-		_, rIndex, _ := e.GetForwardNeighborIndexes(index)
-		if e.CheckValid(rIndex) {
-			// the first block is not the rightmost block
-			rNext := &EntangledBlock{
-				LeftBlockIndex: index, RightBlockIndex: rIndex,
-				Data: e.XORBlockData(e.OriginData[index-1], parityNode.Data), Strand: Right}
-			e.RHParities[index-1] = rNext
-		}
-	}
-	util.LogPrint("Finish wrapping right-hand strand\n")
-	for _, parityNode := range e.cachedParityLH {
-		// Link the last parity block to the first data block of the chain
-		_, _, index := e.GetChainStartIndex(parityNode.RightBlockIndex)
-		parityNode.RightBlockIndex = index
-		// Recompute the first parity block
-		_, _, lIndex := e.GetForwardNeighborIndexes(index)
-		if e.CheckValid(lIndex) {
-			// the first block is not the rightmost block
-			rNext := &EntangledBlock{
-				LeftBlockIndex: index, RightBlockIndex: lIndex,
-				Data: e.XORBlockData(e.OriginData[index-1], parityNode.Data), Strand: Left}
-			e.LHParities[index-1] = rNext
-		}
-	}
-	util.LogPrint("Finish wrapping left-hand strand\n")
 }
 
 // GetPositionCategory determines which category the node belongs. Top, Bottom or Central
@@ -217,37 +169,40 @@ func (e *Entangler) GetPositionCategory(index int) PositionClass {
 }
 
 // GetChainIndexes reads the cached backward parity neighbors of the current indexed node
-func (e *Entangler) GetChainIndexes(index int) (h, rh, lh int) {
-	h = (index - 1) % e.S
+func (e *Entangler) GetChainIndexes(index int) (indexes []int) {
+	h := (index - 1) % e.S
 
 	indexInWindow := (index - 1) % (e.S * e.P)
 	x := indexInWindow % e.P
 	y := indexInWindow / e.P
 
-	rh = (y - x + e.P) % e.P
-	lh = (x + y) % e.S
+	rh := (y - x + e.P) % e.P
+	lh := (x + y) % e.S
+
+	indexes = []int{h, rh, lh}
 
 	return
 }
 
 // GetChainStartIndexes returns the position of the first node on the chain where the indexed node is on
-func (e *Entangler) GetChainStartIndex(index int) (h, rh, lh int) {
-	h, rh, lh = e.GetChainIndexes(index)
-	h = h + 1
-	rh = (e.P-rh)%e.P + 1
-	lh = lh + 1
+func (e *Entangler) GetChainStartIndexes(index int) (indexes []int) {
+	indexes = e.GetChainIndexes(index)
+	indexes[0] += 1
+	indexes[1] = (e.P-indexes[1])%e.P + 1
+	indexes[2] += 1
 
 	return
 }
 
 // GetBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
-func (e *Entangler) GetBackwardNeighborIndexes(index int) (h, rh, lh int) {
-	if e.Alpha != 3 {
+func (e *Entangler) GetBackwardNeighborIndexes(index int) (indexes []int) {
+	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")
 	}
 
 	// d_i is tangled with p_{h,i}
 	pos := e.GetPositionCategory(index)
+	var h, rh, lh int
 	switch pos {
 	case Top:
 		h = index - e.S
@@ -263,17 +218,20 @@ func (e *Entangler) GetBackwardNeighborIndexes(index int) (h, rh, lh int) {
 		lh = index - e.S*e.P + (e.S-1)*(e.S-1)
 	}
 
+	indexes = []int{h, rh, lh}
+
 	return
 }
 
 // GetForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
-func (e *Entangler) GetForwardNeighborIndexes(index int) (h, rh, lh int) {
-	if e.Alpha != 3 {
+func (e *Entangler) GetForwardNeighborIndexes(index int) (indexes []int) {
+	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")
 	}
 
 	// d_i creates entangled block p_{i,j}
 	pos := e.GetPositionCategory(index)
+	var h, rh, lh int
 	switch pos {
 	case Top:
 		h = index + e.S
@@ -288,6 +246,8 @@ func (e *Entangler) GetForwardNeighborIndexes(index int) (h, rh, lh int) {
 		rh = index + e.S*e.P - (e.S*e.S - 1)
 		lh = index + e.S - 1
 	}
+
+	indexes = []int{h, rh, lh}
 
 	return
 }
