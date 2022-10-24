@@ -15,20 +15,35 @@ const (
 )
 
 // Strand defines which strand the entangled block belongs
-// type StrandClass int
+type StrandClass int
 
-// const (
-// 	Horizontal StrandClass = iota
-// 	Right
-// 	Left
-// )
+const (
+	Horizontal StrandClass = iota
+	Right
+	Left
+)
 
 // EntangledBlock is the parity block output by alpha entanglement code
 type EntangledBlock struct {
 	LeftBlockIndex  int
 	RightBlockIndex int
 	Data            []byte
-	Strand          int
+	Strand          StrandClass
+}
+
+// NewEntangledBlock creates a new entangled block and set it strandclass according to the input
+func NewEntangledBlock(l int, r int, data []byte, strand int) (block *EntangledBlock) {
+	block = &EntangledBlock{LeftBlockIndex: l, RightBlockIndex: r, Data: data}
+	switch strand {
+	case 0:
+		block.Strand = Horizontal
+	case 1:
+		block.Strand = Right
+	case 2:
+		block.Strand = Left
+	}
+
+	return
 }
 
 // Entangler manages all the entanglement related behaviors
@@ -101,16 +116,12 @@ func (e *Entangler) PrepareEntangle() {
 	e.cachedParities = make([][]*EntangledBlock, e.Alpha)
 	e.cachedParities[0] = make([]*EntangledBlock, e.S)
 	for i := 0; i < e.S; i++ {
-		e.cachedParities[0][i] = &EntangledBlock{
-			LeftBlockIndex: 0, RightBlockIndex: 0,
-			Data: make([]byte, e.ChunkSize), Strand: 0}
+		e.cachedParities[0][i] = NewEntangledBlock(0, 0, make([]byte, e.ChunkSize), 0)
 	}
 	for k := 1; k < e.Alpha; k++ {
 		e.cachedParities[k] = make([]*EntangledBlock, e.P)
 		for i := 0; i < e.P; i++ {
-			e.cachedParities[k][i] = &EntangledBlock{
-				LeftBlockIndex: 0, RightBlockIndex: 0,
-				Data: make([]byte, e.ChunkSize), Strand: k}
+			e.cachedParities[k][i] = NewEntangledBlock(0, 0, make([]byte, e.ChunkSize), k)
 		}
 	}
 
@@ -129,9 +140,7 @@ func (e *Entangler) EntangleSingleBlock(index int, data []byte) {
 		// generate new parity block
 		parityData := e.XORBlockData(data, prevBlock.Data)
 		// generate, cache and store entangled block
-		nextBlock := &EntangledBlock{
-			LeftBlockIndex: index, RightBlockIndex: rIndexes[k],
-			Data: parityData, Strand: k}
+		nextBlock := NewEntangledBlock(index, rIndexes[k], parityData, k)
 		e.cachedParities[k][cachePos[k]] = nextBlock
 		e.ParityBlocks[k][index-1] = nextBlock
 	}
@@ -147,9 +156,8 @@ func (e *Entangler) WrapLattice() {
 			rIndex := e.GetForwardNeighborIndexes(index)[k]
 			if e.CheckValid(rIndex) {
 				// the first block is not the rightmost block
-				rNext := &EntangledBlock{
-					LeftBlockIndex: index, RightBlockIndex: rIndex,
-					Data: e.XORBlockData(e.OriginData[index-1], parityNode.Data), Strand: k}
+				rNext := NewEntangledBlock(index, rIndex,
+					e.XORBlockData(e.OriginData[index-1], parityNode.Data), k)
 				e.ParityBlocks[k][index-1] = rNext
 			}
 		}
@@ -252,14 +260,7 @@ func (e *Entangler) GetForwardNeighborIndexes(index int) (indexes []int) {
 	return
 }
 
-// func (e *Entangler) GetRightmostBlocks() (HParities, RHParities, LHParities []*EntangledBlock) {
-// 	HParities = make([]*EntangledBlock, 0)
-// 	RHParities = make([]*EntangledBlock, 0)
-// 	LHParities = make([]*EntangledBlock, 0)
-
-// 	maxWapNum :=
-// }
-
+// CheckValid checks if the index is inside the lattice
 func (e *Entangler) CheckValid(index int) bool {
 	if index < 1 || index > e.TotalChunks {
 		return false
