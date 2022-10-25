@@ -73,18 +73,26 @@ func NewEntangler(alpha int, s int, p int, chunkSize int, data *[][]byte) (entan
 	return
 }
 
-// GetEntanglement returns the entangled blocks in different strands
-func (e *Entangler) GetEntanglement() (HParities, RHParities, LHParities []*EntangledBlock) {
+// GetEntanglement returns the entanglement in bytes in different strands
+func (e *Entangler) GetEntanglement() (entanglement [][]byte) {
 	if !e.finished {
 		// lazy entangle
-		util.LogPrint("Start entangling\n")
 		e.Entangle()
 		e.finished = true
-		util.LogPrint("Finish entangling\n")
 	}
-	HParities = e.ParityBlocks[0]
-	RHParities = e.ParityBlocks[1]
-	LHParities = e.ParityBlocks[2]
+
+	entanglement = make([][]byte, e.Alpha)
+	for k := 0; k < e.Alpha; k++ {
+		entangledData := make([]byte, 0)
+		parities := e.ParityBlocks[k]
+		util.LogPrint(util.Yellow("Strand %d: "), k)
+		for _, parity := range parities {
+			util.LogPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
+			entangledData = append(entangledData, parity.Data...)
+		}
+		entanglement[k] = entangledData
+		fmt.Println(util.Green(len(entanglement[k])))
+	}
 
 	return
 }
@@ -94,16 +102,16 @@ func (e *Entangler) Entangle() {
 	e.PrepareEntangle()
 
 	// generate the lattice
-	util.LogPrint("Start generating lattice\n")
+	util.LogPrint(util.White("Start generating lattice\n"))
 	for i, block := range e.OriginData {
 		e.EntangleSingleBlock(i+1, block)
 	}
-	util.LogPrint("Finish generating lattice\n")
+	util.LogPrint(util.White("Finish generating lattice\n"))
 
 	// wraps the lattice
-	util.LogPrint("Start wrapping lattice\n")
+	util.LogPrint(util.White("Start wrapping lattice\n"))
 	e.WrapLattice()
-	util.LogPrint("Finish wrapping lattice\n")
+	util.LogPrint(util.White("Finish wrapping lattice\n"))
 }
 
 // PrepareEntangle prepares the data structure that will be used for entanglement
