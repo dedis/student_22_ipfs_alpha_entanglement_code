@@ -64,6 +64,15 @@ type Entangler struct {
 
 // NewEntangler takes the entanglement paramters and the original data slice and creates an entangler
 func NewEntangler(alpha int, s int, p int, chunkSize int, data *[][]byte) (entangler *Entangler) {
+	if alpha == 1 {
+		if s != 1 || p != 0 {
+			util.ThrowError("invalid value. Expect s = 1 and p = 0")
+		}
+	} else {
+		if s > p {
+			util.ThrowError("invalid value. Expect p >= s")
+		}
+	}
 	entangler = &Entangler{Alpha: alpha, S: s, P: p, ChunkSize: chunkSize}
 	entangler.OriginData = *data
 	entangler.TotalChunks = len(*data)
