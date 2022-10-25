@@ -1,7 +1,6 @@
 package entangler
 
 import (
-	"fmt"
 	"ipfs-alpha-entanglement-code/util"
 )
 
@@ -90,8 +89,8 @@ func (e *Entangler) GetEntanglement() (entanglement [][]byte) {
 			util.LogPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
 			entangledData = append(entangledData, parity.Data...)
 		}
+		util.LogPrint("\n")
 		entanglement[k] = entangledData
-		fmt.Println(util.Green(len(entanglement[k])))
 	}
 
 	return
@@ -169,7 +168,6 @@ func (e *Entangler) WrapLattice() {
 				e.ParityBlocks[k][index-1] = rNext
 			}
 		}
-		fmt.Println()
 	}
 }
 
