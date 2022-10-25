@@ -1,60 +1,12 @@
 package ipfsconnector
 
 import (
-	"fmt"
-	"ipfs-alpha-entanglement-code/entangler"
 	"ipfs-alpha-entanglement-code/util"
 	"os"
-	"strings"
 
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 )
-
-// Upload uploads the original file, generates and uploads the entanglement of that file
-func (c *IPFSConnector) Upload(path string, alpha int, s int, p int) error {
-	// add original file to ipfs
-	cid, err := c.AddFile(path)
-	util.CheckError(err, "could not add File to IPFS")
-	fmt.Printf(util.White("Finish adding file to IPFS with CID %s. File path: %s\n"), cid.String(), path)
-
-	// get merkle tree from swarm and flattern the tree
-	root, err := c.GetMerkleTree(cid)
-	util.CheckError(err, "could not read merkle tree")
-	nodes := root.GetFlattenedTree(s, p)
-	util.LogPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
-	for _, node := range nodes {
-		util.LogPrint(util.Green(" %d"), node.PostOrderIdx)
-	}
-	util.LogPrint("\n")
-	fmt.Println(util.White("Finish reading file's merkle tree from IPFS"))
-
-	// generate entanglement
-	data := make([][]byte, len(nodes))
-	maxSize := 0
-	for i, node := range nodes {
-		data[i] = node.Data
-		if maxSize < len(node.Data) {
-			maxSize = len(node.Data)
-		}
-	}
-	tangler := entangler.NewEntangler(alpha, s, p, maxSize, &data)
-	entanglement := tangler.GetEntanglement()
-	fmt.Println(util.White("Finish generating entanglement"))
-
-	// write entanglement to files and upload to ipfs
-	entanglementFilenamePrefix := strings.Split(path, ".")[0]
-	for k, parities := range entanglement {
-		entanglementFilename := fmt.Sprintf("%s_entanglement_%d", entanglementFilenamePrefix, k)
-		err = os.WriteFile(entanglementFilename, parities, 0644)
-		util.CheckError(err, "fail to write entanglement file")
-		cid, err := c.AddFile(entanglementFilename)
-		util.CheckError(err, "could not add entanglement file to IPFS")
-		fmt.Printf(util.White("Finish adding entanglement to IPFS with CID %s. File path: %s\n"), cid.String(), entanglementFilename)
-	}
-
-	return nil
-}
 
 // AddFile takes the file in the given path and writes it to IPFS network
 func (c *IPFSConnector) AddFile(path string) (path.Resolved, error) {
@@ -104,7 +56,7 @@ func (c *IPFSConnector) GetFileByBlocks(cid path.Resolved) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(util.Red(nodeStat.DataSize), cid.String(), len(rootNodeFile.Links()))
+	util.LogPrint(util.Red(nodeStat.DataSize), cid.String(), len(rootNodeFile.Links()))
 
 	// Iterate all links that this block points to
 	for _, link := range rootNodeFile.Links() {
