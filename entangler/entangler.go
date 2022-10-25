@@ -68,10 +68,12 @@ func NewEntangler(alpha int, s int, p int, chunkSize int, data *[][]byte) (entan
 		if s != 1 || p != 0 {
 			util.ThrowError("invalid value. Expect s = 1 and p = 0")
 		}
-	} else {
+	} else if alpha > 1 {
 		if s > p {
 			util.ThrowError("invalid value. Expect p >= s")
 		}
+	} else {
+		util.ThrowError("invalid value. Expect alpha > 0")
 	}
 	entangler = &Entangler{Alpha: alpha, S: s, P: p, ChunkSize: chunkSize}
 	entangler.OriginData = *data
