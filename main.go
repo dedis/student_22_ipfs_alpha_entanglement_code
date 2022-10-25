@@ -15,6 +15,6 @@ func main() {
 	alpha, s, p := 3, 5, 5
 	path := "test/data/largeFile.txt"
 
-	err = connector.UploadFile(path, alpha, s, p)
+	err = connector.Upload(path, alpha, s, p)
 	util.CheckError(err, "fail uploading file %s or its entanglement", path)
 }

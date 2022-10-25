@@ -11,7 +11,8 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 )
 
-func (c *IPFSConnector) UploadFile(path string, alpha int, s int, p int) error {
+// Upload uploads the original file, generates and uploads the entanglement of that file
+func (c *IPFSConnector) Upload(path string, alpha int, s int, p int) error {
 	// add original file to ipfs
 	cid, err := c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
