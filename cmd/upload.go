@@ -18,7 +18,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	// add original file to ipfs
 	cid, err := c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
-	util.LogPrint(util.White("Finish adding file to IPFS with CID %s. File path: %s\n"), cid.String(), path)
+	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", cid.String(), path)
 
 	if alpha < 1 {
 		// expect no entanglement
@@ -29,12 +29,12 @@ func Upload(path string, alpha int, s int, p int) error {
 	root, err := c.GetMerkleTree(cid)
 	util.CheckError(err, "could not read merkle tree")
 	nodes := root.GetFlattenedTree(s, p)
-	util.LogPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
+	util.InfoPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
 	for _, node := range nodes {
-		util.LogPrint(util.Green(" %d"), node.PostOrderIdx)
+		util.InfoPrint(util.Green(" %d"), node.PostOrderIdx)
 	}
-	util.LogPrint("\n")
-	util.LogPrint(util.White("Finish reading and flatterning file's merkle tree from IPFS\n"))
+	util.InfoPrint("\n")
+	util.LogPrint("Finish reading and flatterning file's merkle tree from IPFS")
 
 	// generate entanglement
 	data := make([][]byte, len(nodes))
@@ -47,7 +47,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	}
 	tangler := entangler.NewEntangler(alpha, s, p, maxSize, &data)
 	entanglement := tangler.GetEntanglement()
-	util.LogPrint(util.White("Finish generating entanglement\n"))
+	util.LogPrint("Finish generating entanglement")
 
 	// write entanglement to files and upload to ipfs
 	entanglementFilenamePrefix := strings.Split(path, ".")[0]
@@ -57,7 +57,7 @@ func Upload(path string, alpha int, s int, p int) error {
 		util.CheckError(err, "fail to write entanglement file")
 		cid, err := c.AddFile(entanglementFilename)
 		util.CheckError(err, "could not add entanglement file to IPFS")
-		util.LogPrint(util.White("Finish adding entanglement to IPFS with CID %s. File path: %s\n"), cid.String(), entanglementFilename)
+		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid.String(), entanglementFilename)
 	}
 
 	return nil

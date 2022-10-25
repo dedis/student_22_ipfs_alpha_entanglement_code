@@ -95,12 +95,12 @@ func (e *Entangler) GetEntanglement() (entanglement [][]byte) {
 	for k := 0; k < e.Alpha; k++ {
 		entangledData := make([]byte, 0)
 		parities := e.ParityBlocks[k]
-		util.LogPrint(util.Yellow("Strand %d: "), k)
+		util.InfoPrint(util.Yellow("Strand %d: "), k)
 		for _, parity := range parities {
-			util.LogPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
+			util.InfoPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
 			entangledData = append(entangledData, parity.Data...)
 		}
-		util.LogPrint("\n")
+		util.InfoPrint("\n")
 		entanglement[k] = entangledData
 	}
 
@@ -112,16 +112,16 @@ func (e *Entangler) Entangle() {
 	e.PrepareEntangle()
 
 	// generate the lattice
-	util.LogPrint(util.White("Start generating lattice\n"))
+	util.LogPrint("Start generating lattice")
 	for i, block := range e.OriginData {
 		e.EntangleSingleBlock(i+1, block)
 	}
-	util.LogPrint(util.White("Finish generating lattice\n"))
+	util.LogPrint("Finish generating lattice")
 
 	// wraps the lattice
-	util.LogPrint(util.White("Start wrapping lattice\n"))
+	util.LogPrint("Start wrapping lattice")
 	e.WrapLattice()
-	util.LogPrint(util.White("Finish wrapping lattice\n"))
+	util.LogPrint("Finish wrapping lattice")
 }
 
 // PrepareEntangle prepares the data structure that will be used for entanglement
