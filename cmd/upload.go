@@ -21,7 +21,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	util.LogPrint(util.White("Finish adding file to IPFS with CID %s. File path: %s\n"), cid.String(), path)
 
 	if alpha < 1 {
-		// no entanglement to be down
+		// expect no entanglement
 		return nil
 	}
 
@@ -34,7 +34,7 @@ func Upload(path string, alpha int, s int, p int) error {
 		util.LogPrint(util.Green(" %d"), node.PostOrderIdx)
 	}
 	util.LogPrint("\n")
-	util.LogPrint(util.White("Finish reading and flatterning file's merkle tree from IPFS"))
+	util.LogPrint(util.White("Finish reading and flatterning file's merkle tree from IPFS\n"))
 
 	// generate entanglement
 	data := make([][]byte, len(nodes))
@@ -47,7 +47,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	}
 	tangler := entangler.NewEntangler(alpha, s, p, maxSize, &data)
 	entanglement := tangler.GetEntanglement()
-	util.LogPrint(util.White("Finish generating entanglement"))
+	util.LogPrint(util.White("Finish generating entanglement\n"))
 
 	// write entanglement to files and upload to ipfs
 	entanglementFilenamePrefix := strings.Split(path, ".")[0]
