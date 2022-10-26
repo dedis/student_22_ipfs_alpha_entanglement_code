@@ -3,21 +3,40 @@ package ipfsconnector
 // TreeNode implements a node in IPLD Merkle Tree
 type TreeNode struct {
 	// TODO: consider DAG? Multiple Parents?
-	Data         []byte
+	data []byte
+
 	Children     []*TreeNode
 	Parent       *TreeNode
 	Depth        int
 	TreeSize     int
 	PostOrderIdx int
+
+	connector *IPFSConnector
+	CID       string
 }
 
 // CreateTreeNode is the constructor of TreeNode
 func CreateTreeNode(data []byte) *TreeNode {
-	n := TreeNode{Data: data, Parent: nil}
+	n := TreeNode{data: data, Parent: nil}
 	n.Children = make([]*TreeNode, 0)
 	n.TreeSize = 1
 	n.Depth = -1
 	return &n
+}
+
+// LoadData loads the node raw data from IPFS network lazily
+func (n *TreeNode) Data() (data []byte, err error) {
+	if len(n.data) == 0 && n.connector != nil && len(n.CID) > 0 {
+		var myData []byte
+		myData, err = n.connector.shell.BlockGet(n.CID)
+		if err != nil {
+			return
+		}
+		n.data = myData
+	}
+	data = n.data
+
+	return
 }
 
 // AddChild links a child to the current node

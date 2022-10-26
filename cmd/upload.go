@@ -5,7 +5,6 @@ import (
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
-	"os"
 	"strings"
 )
 
@@ -36,24 +35,29 @@ func Upload(path string, alpha int, s int, p int) error {
 	util.LogPrint("Finish reading and flatterning file's merkle tree from IPFS")
 
 	// generate entanglement
-	data := make([][]byte, len(nodes))
+	data := make(chan []byte, len(nodes))
 	maxSize := 0
-	for i, node := range nodes {
-		data[i] = node.Data
-		if maxSize < len(node.Data) {
-			maxSize = len(node.Data)
+	for _, node := range nodes {
+		nodeData, err := node.Data()
+		util.CheckError(err, "fail to load chunk data from IPFS")
+		if maxSize < len(nodeData) {
+			maxSize = len(nodeData)
 		}
+		data <- nodeData
 	}
-	tangler := entangler.NewEntangler(alpha, s, p, maxSize, &data)
-	entanglement := tangler.GetEntanglement()
+	close(data)
+	tangler := entangler.NewEntangler(alpha, s, p, maxSize, data)
+
+	outputPaths := make([]string, alpha)
+	for k := 0; k < alpha; k++ {
+		outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(path, ".")[0], k)
+	}
+	err = tangler.GenerateEntanglement(outputPaths)
+	util.CheckError(err, "fail to generate entanglement")
 	util.LogPrint("Finish generating entanglement")
 
-	// write entanglement to files and upload to ipfs
-	entanglementFilenamePrefix := strings.Split(path, ".")[0]
-	for k, parities := range entanglement {
-		entanglementFilename := fmt.Sprintf("%s_entanglement_%d", entanglementFilenamePrefix, k)
-		err = os.WriteFile(entanglementFilename, parities, 0644)
-		util.CheckError(err, "fail to write entanglement file")
+	// upload entanglements to ipfs
+	for _, entanglementFilename := range outputPaths {
 		cid, err := c.AddFile(entanglementFilename)
 		util.CheckError(err, "could not add entanglement file to IPFS")
 		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid, entanglementFilename)

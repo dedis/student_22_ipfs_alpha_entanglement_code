@@ -49,11 +49,9 @@ func (c *IPFSConnector) GetMerkleTree(cid string) (*TreeNode, error) {
 			return nil, err
 		}
 
-		data, err := c.shell.BlockGet(cid)
-		if err != nil {
-			return nil, err
-		}
-		rootNode := CreateTreeNode(data)
+		rootNode := CreateTreeNode([]byte{})
+		rootNode.CID = cid
+		rootNode.connector = c
 
 		// iterate all links that this block points to
 		for _, link := range rootNodeFile.Links {
