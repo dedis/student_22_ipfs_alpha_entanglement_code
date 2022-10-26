@@ -11,14 +11,13 @@ import (
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
 func Upload(path string, alpha int, s int, p int) error {
-	c, err := ipfsconnector.CreateIPFSConnector(false)
+	c, err := ipfsconnector.CreateIPFSConnector(0)
 	util.CheckError(err, "failed to spawn peer node")
-	defer c.Stop()
 
 	// add original file to ipfs
 	cid, err := c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
-	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", cid.String(), path)
+	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", cid, path)
 
 	if alpha < 1 {
 		// expect no entanglement
@@ -57,7 +56,7 @@ func Upload(path string, alpha int, s int, p int) error {
 		util.CheckError(err, "fail to write entanglement file")
 		cid, err := c.AddFile(entanglementFilename)
 		util.CheckError(err, "could not add entanglement file to IPFS")
-		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid.String(), entanglementFilename)
+		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid, entanglementFilename)
 	}
 
 	return nil
