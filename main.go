@@ -25,13 +25,16 @@ func main() {
 	util.CheckError(err, "fail uploading file %s or its entanglement", path)
 
 	/* Simple ipfs cluster test, with GET request */
-	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(0)
-	result, err := ipfscluster.PeerLs()
-	util.CheckError(err, "fail to execute IPFS cluster peer ls")
-	util.LogPrint(util.Yellow(result))
-
-	result, err = ipfscluster.PeerInfo()
+	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
+	peerName, err := ipfscluster.PeerInfo()
 	util.CheckError(err, "fail to execute IPFS cluster peer info")
-	util.LogPrint(util.Green(result))
+	util.LogPrint(fmt.Sprintf("Connected IPFS Cluster peer: %s", peerName))
 
+	nbPeer, err := ipfscluster.PeerLs()
+	util.CheckError(err, "fail to execute IPFS cluster peer ls")
+	util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
+
+	pinStatus, err := ipfscluster.PinStatus("")
+	util.CheckError(err, "fail to execute IPFS cluster peer ls")
+	util.LogPrint(fmt.Sprintf("Pinned files: %s", pinStatus))
 }
