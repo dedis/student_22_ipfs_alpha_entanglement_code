@@ -98,7 +98,7 @@ func (e *Entangler) GenerateEntanglement(path []string) (err error) {
 
 	if !e.finished {
 		// lazy entangle
-		e.Entangle()
+		e.entangle()
 		e.finished = true
 	}
 
@@ -121,16 +121,16 @@ func (e *Entangler) GenerateEntanglement(path []string) (err error) {
 	return
 }
 
-// Entangle generate the entangelement for the given arrray of blocks
-func (e *Entangler) Entangle() {
-	e.PrepareEntangle()
+// entangle generate the entangelement for the given arrray of blocks
+func (e *Entangler) entangle() {
+	e.prepareEntangle()
 
 	// generate the lattice
 	util.LogPrint("Start generating lattice")
 	index := 0
 	for block := range e.OriginData {
 		index++
-		e.EntangleSingleBlock(index, block)
+		e.entangleSingleBlock(index, block)
 		if index <= e.MaxChainNumPerStrand {
 			e.ChainStartData[index-1] = block
 		}
@@ -140,12 +140,12 @@ func (e *Entangler) Entangle() {
 
 	// wraps the lattice
 	util.LogPrint("Start wrapping lattice")
-	e.WrapLattice()
+	e.wrapLattice()
 	util.LogPrint("Finish wrapping lattice")
 }
 
-// PrepareEntangle prepares the data structure that will be used for entanglement
-func (e *Entangler) PrepareEntangle() {
+// prepareEntangle prepares the data structure that will be used for entanglement
+func (e *Entangler) prepareEntangle() {
 	e.ParityBlocks = make([][]*EntangledBlock, e.Alpha)
 	for k := 0; k < e.Alpha; k++ {
 		e.ParityBlocks[k] = make([]*EntangledBlock, 0)
@@ -168,17 +168,17 @@ func (e *Entangler) PrepareEntangle() {
 	e.rightMostBlocks = make([]*EntangledBlock, 0)
 }
 
-// EntangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
+// entangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
 // It should be called in the correct order to ensure the correctness of cached blocks
-func (e *Entangler) EntangleSingleBlock(index int, data []byte) {
-	cachePos := e.GetChainIndexes(index)
-	rIndexes := e.GetForwardNeighborIndexes(index)
+func (e *Entangler) entangleSingleBlock(index int, data []byte) {
+	cachePos := e.getChainIndexes(index)
+	rIndexes := e.getForwardNeighborIndexes(index)
 
 	for k := 0; k < e.Alpha; k++ {
 		// read parity block from cache
 		prevBlock := e.cachedParities[k][cachePos[k]]
 		// generate new parity block
-		parityData := e.XORBlockData(data, prevBlock.Data)
+		parityData := e.xorBlockData(data, prevBlock.Data)
 		// generate, cache and store entangled block
 		nextBlock := NewEntangledBlock(index, rIndexes[k], parityData, k)
 		e.cachedParities[k][cachePos[k]] = nextBlock
@@ -186,26 +186,26 @@ func (e *Entangler) EntangleSingleBlock(index int, data []byte) {
 	}
 }
 
-func (e *Entangler) WrapLattice() {
+func (e *Entangler) wrapLattice() {
 	for k, cacheParity := range e.cachedParities {
 		for _, parityNode := range cacheParity {
 			// Link the last parity block to the first data block of the chain
-			index := e.GetChainStartIndexes(parityNode.RightBlockIndex)[k]
+			index := e.getChainStartIndexes(parityNode.RightBlockIndex)[k]
 			parityNode.RightBlockIndex = index
 			// Recompute the first parity block
-			rIndex := e.GetForwardNeighborIndexes(index)[k]
-			if e.CheckValid(rIndex) {
+			rIndex := e.getForwardNeighborIndexes(index)[k]
+			if e.IsValidIndex(rIndex) {
 				// the first block is not the rightmost block
 				rNext := NewEntangledBlock(index, rIndex,
-					e.XORBlockData(e.ChainStartData[index-1], parityNode.Data), k)
+					e.xorBlockData(e.ChainStartData[index-1], parityNode.Data), k)
 				e.ParityBlocks[k][index-1] = rNext
 			}
 		}
 	}
 }
 
-// GetPositionCategory determines which category the node belongs. Top, Bottom or Central
-func (e *Entangler) GetPositionCategory(index int) PositionClass {
+// getPositionCategory determines which category the node belongs. Top, Bottom or Central
+func (e *Entangler) getPositionCategory(index int) PositionClass {
 	nodePos := index % e.S
 	if nodePos == 1 || nodePos == 1-e.S {
 		return Top
@@ -215,8 +215,8 @@ func (e *Entangler) GetPositionCategory(index int) PositionClass {
 	return Central
 }
 
-// GetChainIndexes reads the cached backward parity neighbors of the current indexed node
-func (e *Entangler) GetChainIndexes(index int) (indexes []int) {
+// getChainIndexes reads the cached backward parity neighbors of the current indexed node
+func (e *Entangler) getChainIndexes(index int) (indexes []int) {
 	h := (index - 1) % e.S
 
 	indexInWindow := (index - 1) % (e.S * e.P)
@@ -231,9 +231,9 @@ func (e *Entangler) GetChainIndexes(index int) (indexes []int) {
 	return
 }
 
-// GetChainStartIndexes returns the position of the first node on the chain where the indexed node is on
-func (e *Entangler) GetChainStartIndexes(index int) (indexes []int) {
-	indexes = e.GetChainIndexes(index)
+// getChainStartIndexes returns the position of the first node on the chain where the indexed node is on
+func (e *Entangler) getChainStartIndexes(index int) (indexes []int) {
+	indexes = e.getChainIndexes(index)
 	indexes[0] += 1
 	indexes[1] = (e.P-indexes[1])%e.P + 1
 	indexes[2] += 1
@@ -241,14 +241,14 @@ func (e *Entangler) GetChainStartIndexes(index int) (indexes []int) {
 	return
 }
 
-// GetBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
-func (e *Entangler) GetBackwardNeighborIndexes(index int) (indexes []int) {
+// getBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
+func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
 	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")
 	}
 
 	// d_i is tangled with p_{h,i}
-	pos := e.GetPositionCategory(index)
+	pos := e.getPositionCategory(index)
 	var h, rh, lh int
 	switch pos {
 	case Top:
@@ -270,14 +270,14 @@ func (e *Entangler) GetBackwardNeighborIndexes(index int) (indexes []int) {
 	return
 }
 
-// GetForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
-func (e *Entangler) GetForwardNeighborIndexes(index int) (indexes []int) {
+// getForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
+func (e *Entangler) getForwardNeighborIndexes(index int) (indexes []int) {
 	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")
 	}
 
 	// d_i creates entangled block p_{i,j}
-	pos := e.GetPositionCategory(index)
+	pos := e.getPositionCategory(index)
 	var h, rh, lh int
 	switch pos {
 	case Top:
@@ -299,25 +299,25 @@ func (e *Entangler) GetForwardNeighborIndexes(index int) (indexes []int) {
 	return
 }
 
-// CheckValid checks if the index is inside the lattice
-func (e *Entangler) CheckValid(index int) bool {
+// IsValidIndex checks if the index is inside the lattice
+func (e *Entangler) IsValidIndex(index int) bool {
 	if index < 1 || index > e.ChunkNum {
 		return false
 	}
 	return true
 }
 
-// XORBlockData pads the bytes to the desired length and XOR these two bytes array
-func (e *Entangler) XORBlockData(data1 []byte, data2 []byte) (result []byte) {
+// xorBlockData pads the bytes to the desired length and XOR these two bytes array
+func (e *Entangler) xorBlockData(data1 []byte, data2 []byte) (result []byte) {
 	if len(data1) == 0 {
-		return e.PaddedData(&data2)
+		return e.paddedData(&data2)
 	}
 	if len(data2) == 0 {
-		return e.PaddedData(&data1)
+		return e.paddedData(&data1)
 	}
 
-	padded1 := e.PaddedData(&data1)
-	padded2 := e.PaddedData(&data2)
+	padded1 := e.paddedData(&data1)
+	padded2 := e.paddedData(&data2)
 
 	result = make([]byte, e.ChunkSize)
 	for i := 0; i < e.ChunkSize; i++ {
@@ -327,8 +327,8 @@ func (e *Entangler) XORBlockData(data1 []byte, data2 []byte) (result []byte) {
 	return
 }
 
-// PaddedData pads the data to fixed length and return the padded data
-func (e *Entangler) PaddedData(data *[]byte) (result []byte) {
+// paddedData pads the data to fixed length and return the padded data
+func (e *Entangler) paddedData(data *[]byte) (result []byte) {
 	dataLength := len(*data)
 	if dataLength > e.ChunkSize {
 		util.ThrowError("data block size should not be larger than %d. Now is %d", e.ChunkSize, dataLength)
