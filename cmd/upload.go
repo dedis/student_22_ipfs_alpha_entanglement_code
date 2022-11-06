@@ -24,7 +24,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	}
 
 	// get merkle tree from swarm and flattern the tree
-	root, err := c.GetMerkleTree(cid)
+	root, err := c.GetMerkleTree(cid, &entangler.Lattice{})
 	util.CheckError(err, "could not read merkle tree")
 	nodes := root.GetFlattenedTree(s, p)
 	util.InfoPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
@@ -36,24 +36,22 @@ func Upload(path string, alpha int, s int, p int) error {
 
 	// generate entanglement
 	data := make(chan []byte, len(nodes))
-	maxSize := 0
 	for _, node := range nodes {
 		nodeData, err := node.Data()
 		util.CheckError(err, "fail to load chunk data from IPFS")
-		if maxSize < len(nodeData) {
-			maxSize = len(nodeData)
-		}
 		data <- nodeData
 	}
 	close(data)
-	tangler := entangler.NewEntangler(alpha, s, p, maxSize, data)
+	tangler := entangler.NewEntangler(alpha, s, p)
 
 	outputPaths := make([]string, alpha)
 	for k := 0; k < alpha; k++ {
 		outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(path, ".")[0], k)
 	}
-	err = tangler.GenerateEntanglement(outputPaths)
+	err = tangler.Entangle(data)
 	util.CheckError(err, "fail to generate entanglement")
+	err = tangler.WriteEntanglementToFile(outputPaths)
+	util.CheckError(err, "fail to write entanglement to file")
 	util.LogPrint("Finish generating entanglement")
 
 	// upload entanglements to ipfs

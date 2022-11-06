@@ -2,6 +2,7 @@ package ipfsconnector
 
 import (
 	"fmt"
+	"ipfs-alpha-entanglement-code/entangler"
 	"os"
 
 	sh "github.com/ipfs/go-ipfs-api"
@@ -39,16 +40,17 @@ func (c *IPFSConnector) GetFile(cid string, outputPath string) error {
 }
 
 // GetMerkleTree takes the Merkle tree root CID, constructs the tree and returns the root node
-func (c *IPFSConnector) GetMerkleTree(cid string) (*TreeNode, error) {
+func (c *IPFSConnector) GetMerkleTree(cid string, lattice *entangler.Lattice) (*TreeNode, error) {
 	currIdx := 0
 	var getMerkleNode func(string) (*TreeNode, error)
+
 	getMerkleNode = func(cid string) (*TreeNode, error) {
 		// get the cid node from the IPFS
 		rootNodeFile, err := c.shell.ObjectGet(cid) //c.api.ResolveNode(c.ctx, cid)
 		if err != nil {
 			return nil, err
 		}
-
+		
 		rootNode := CreateTreeNode([]byte{})
 		rootNode.CID = cid
 		rootNode.connector = c

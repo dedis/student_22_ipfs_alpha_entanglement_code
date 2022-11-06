@@ -3,6 +3,8 @@ package entangler
 import (
 	"ipfs-alpha-entanglement-code/util"
 	"os"
+
+	"golang.org/x/xerrors"
 )
 
 // Position defines which position category the original block belongs
@@ -48,11 +50,10 @@ func NewEntangledBlock(l int, r int, data []byte, strand int) (block *EntangledB
 
 // Entangler manages all the entanglement related behaviors
 type Entangler struct {
-	Alpha     int // TODO: now only support alpha = 3 ???
-	S         int
-	P         int
-	ChunkSize int
-	ChunkNum  int
+	Alpha    int // TODO: now only support alpha = 3 ???
+	S        int
+	P        int
+	ChunkNum int
 
 	ParityBlocks         [][]*EntangledBlock
 	OriginData           chan []byte
@@ -66,7 +67,7 @@ type Entangler struct {
 }
 
 // NewEntangler takes the entanglement paramters and the original data slice and creates an entangler
-func NewEntangler(alpha int, s int, p int, chunkSize int, data chan []byte) (entangler *Entangler) {
+func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 	if alpha == 1 {
 		if s != 1 || p != 0 {
 			util.ThrowError("invalid value. Expect s = 1 and p = 0")
@@ -78,8 +79,7 @@ func NewEntangler(alpha int, s int, p int, chunkSize int, data chan []byte) (ent
 	} else {
 		util.ThrowError("invalid value. Expect alpha > 0")
 	}
-	entangler = &Entangler{Alpha: alpha, S: s, P: p, ChunkSize: chunkSize}
-	entangler.OriginData = data
+	entangler = &Entangler{Alpha: alpha, S: s, P: p}
 	entangler.finished = false
 	if s > p {
 		entangler.MaxChainNumPerStrand = s
@@ -90,16 +90,16 @@ func NewEntangler(alpha int, s int, p int, chunkSize int, data chan []byte) (ent
 	return
 }
 
-// GenerateEntanglement returns the entanglement in bytes in different strands
-func (e *Entangler) GenerateEntanglement(path []string) (err error) {
+// WriteEntanglementToFile writes the entanglement into files
+func (e *Entangler) WriteEntanglementToFile(path []string) (err error) {
 	if len(path) != e.Alpha {
-		util.ThrowError("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
+		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
+		return
 	}
 
 	if !e.finished {
-		// lazy entangle
-		e.entangle()
-		e.finished = true
+		err = xerrors.Errorf("No entanglement has been done")
+		return
 	}
 
 	for k := 0; k < e.Alpha; k++ {
@@ -121,8 +121,9 @@ func (e *Entangler) GenerateEntanglement(path []string) (err error) {
 	return
 }
 
-// entangle generate the entangelement for the given arrray of blocks
-func (e *Entangler) entangle() {
+// Entangle generate the entangelement for the given arrray of blocks
+func (e *Entangler) Entangle(data chan []byte) error {
+	e.OriginData = data
 	e.prepareEntangle()
 
 	// generate the lattice
@@ -142,6 +143,10 @@ func (e *Entangler) entangle() {
 	util.LogPrint("Start wrapping lattice")
 	e.wrapLattice()
 	util.LogPrint("Finish wrapping lattice")
+
+	e.finished = true
+
+	return nil
 }
 
 // prepareEntangle prepares the data structure that will be used for entanglement
@@ -156,12 +161,12 @@ func (e *Entangler) prepareEntangle() {
 	e.cachedParities = make([][]*EntangledBlock, e.Alpha)
 	e.cachedParities[0] = make([]*EntangledBlock, e.S)
 	for i := 0; i < e.S; i++ {
-		e.cachedParities[0][i] = NewEntangledBlock(0, 0, make([]byte, e.ChunkSize), 0)
+		e.cachedParities[0][i] = NewEntangledBlock(0, 0, make([]byte, 0), 0)
 	}
 	for k := 1; k < e.Alpha; k++ {
 		e.cachedParities[k] = make([]*EntangledBlock, e.P)
 		for i := 0; i < e.P; i++ {
-			e.cachedParities[k][i] = NewEntangledBlock(0, 0, make([]byte, e.ChunkSize), k)
+			e.cachedParities[k][i] = NewEntangledBlock(0, 0, make([]byte, 0), k)
 		}
 	}
 
@@ -178,7 +183,7 @@ func (e *Entangler) entangleSingleBlock(index int, data []byte) {
 		// read parity block from cache
 		prevBlock := e.cachedParities[k][cachePos[k]]
 		// generate new parity block
-		parityData := e.xorBlockData(data, prevBlock.Data)
+		parityData := XORChunkData(data, prevBlock.Data)
 		// generate, cache and store entangled block
 		nextBlock := NewEntangledBlock(index, rIndexes[k], parityData, k)
 		e.cachedParities[k][cachePos[k]] = nextBlock
@@ -197,7 +202,7 @@ func (e *Entangler) wrapLattice() {
 			if e.IsValidIndex(rIndex) {
 				// the first block is not the rightmost block
 				rNext := NewEntangledBlock(index, rIndex,
-					e.xorBlockData(e.ChainStartData[index-1], parityNode.Data), k)
+					XORChunkData(e.ChainStartData[index-1], parityNode.Data), k)
 				e.ParityBlocks[k][index-1] = rNext
 			}
 		}
@@ -305,42 +310,4 @@ func (e *Entangler) IsValidIndex(index int) bool {
 		return false
 	}
 	return true
-}
-
-// xorBlockData pads the bytes to the desired length and XOR these two bytes array
-func (e *Entangler) xorBlockData(data1 []byte, data2 []byte) (result []byte) {
-	if len(data1) == 0 {
-		return e.paddedData(&data2)
-	}
-	if len(data2) == 0 {
-		return e.paddedData(&data1)
-	}
-
-	padded1 := e.paddedData(&data1)
-	padded2 := e.paddedData(&data2)
-
-	result = make([]byte, e.ChunkSize)
-	for i := 0; i < e.ChunkSize; i++ {
-		result[i] = padded1[i] ^ padded2[i]
-	}
-
-	return
-}
-
-// paddedData pads the data to fixed length and return the padded data
-func (e *Entangler) paddedData(data *[]byte) (result []byte) {
-	dataLength := len(*data)
-	if dataLength > e.ChunkSize {
-		util.ThrowError("data block size should not be larger than %d. Now is %d", e.ChunkSize, dataLength)
-	}
-
-	if dataLength < e.ChunkSize {
-		// TODO: Decide another way of padding? Should origin length be recorded?
-		result = make([]byte, e.ChunkSize)
-		copy(result, *data)
-	} else {
-		result = *data
-	}
-
-	return
 }

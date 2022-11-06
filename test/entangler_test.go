@@ -37,13 +37,18 @@ func Test_Entanglement(t *testing.T) {
 			close(dataChan)
 
 			alpha, s, p := 3, 5, 5
-			tangler := entangler.NewEntangler(alpha, s, p, blockSize, dataChan)
+			tangler := entangler.NewEntangler(alpha, s, p)
 
 			outputPaths := make([]string, 3)
 			for k := 0; k < alpha; k++ {
 				outputPaths[k] = fmt.Sprintf("data/entangler/my_%s_entanglement_%d", input, k)
 			}
-			err = tangler.GenerateEntanglement(outputPaths)
+			err = tangler.Entangle(dataChan)
+			if err != nil {
+				t.Fail()
+				return
+			}
+			err = tangler.WriteEntanglementToFile(outputPaths)
 			if err != nil {
 				t.Fail()
 				return

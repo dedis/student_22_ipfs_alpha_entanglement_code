@@ -62,8 +62,10 @@ func (n *TreeNode) GetFlattenedTree(s int, p int) []*TreeNode {
 			for _, child := range parent.Children {
 				walker(child)
 			}
-			// TODO: should root be inlcuded?
-			internals = append(internals, parent)
+			// meaningless to include root
+			if parent != n {
+				internals = append(internals, parent)
+			}
 		}
 		nodes[parent.PostOrderIdx] = parent
 	}
@@ -74,7 +76,7 @@ func (n *TreeNode) GetFlattenedTree(s int, p int) []*TreeNode {
 	for _, internalNode := range internals {
 		lowestChild := internalNode.Children[0]
 		highestChild := internalNode.Children[len(internalNode.Children)-1]
-		for j := windowSize; j < n.TreeSize; j += windowSize + s {
+		for j := windowSize; j < n.TreeSize; j += s {
 			inWindow := (nodes[j].PostOrderIdx > lowestChild.PostOrderIdx-windowSize &&
 				nodes[j].PostOrderIdx < highestChild.PostOrderIdx+windowSize)
 			if !inWindow && len(nodes[j].Children) == 0 {
