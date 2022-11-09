@@ -35,15 +35,7 @@ type EntangledBlock struct {
 
 // NewEntangledBlock creates a new entangled block and set it strandclass according to the input
 func NewEntangledBlock(l int, r int, data []byte, strand int) (block *EntangledBlock) {
-	block = &EntangledBlock{LeftBlockIndex: l, RightBlockIndex: r, Data: data}
-	switch strand {
-	case 0:
-		block.Strand = Horizontal
-	case 1:
-		block.Strand = Right
-	case 2:
-		block.Strand = Left
-	}
+	block = &EntangledBlock{LeftBlockIndex: l, RightBlockIndex: r, Data: data, Strand: StrandClass(strand)}
 
 	return
 }

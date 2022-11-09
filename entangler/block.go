@@ -2,6 +2,8 @@ package entangler
 
 import (
 	"sync"
+
+	"golang.org/x/xerrors"
 )
 
 // XORChunkData pads the bytes to the desired length and XOR these two bytes array
@@ -37,6 +39,15 @@ func PaddingData(chunk1 *[]byte, chunk2 *[]byte) {
 	}
 }
 
+type BlockStatus int
+
+const (
+	NoAttempt     BlockStatus = iota // Did not attempt to download or repair
+	DataAvailable                    // Data already available
+	RepairPending                    // Repair starts but not finish
+	RepairFailed                     // Repair failed
+)
+
 // BlockPair records a pair of block
 type BlockPair struct {
 	Right, Left *Block
@@ -46,10 +57,11 @@ type BlockPair struct {
 type Block struct {
 	*sync.RWMutex
 
-	Data      []byte
-	Neighbors []*BlockPair
+	Data           []byte
+	LeftNeighbors  []*Block
+	RightNeighbors []*Block
 
-	HasData  bool
+	Status   BlockStatus
 	IsParity bool
 	Index    int
 
@@ -61,10 +73,11 @@ type Block struct {
 }
 
 // NewBlock creates a block in the lattice
-func NewBlock(parityBlock bool) (block *Block) {
+func NewBlock(index int, parityBlock bool) (block *Block) {
 	block = &Block{
+		Index:    index,
 		IsParity: parityBlock,
-		HasData:  false,
+		Status:   NoAttempt,
 	}
 
 	return
@@ -75,7 +88,29 @@ func (b *Block) IsAvailable() bool {
 	b.RLock()
 	defer b.RUnlock()
 
-	return b.HasData
+	return b.Status == DataAvailable
+}
+
+// IsRepairFailed checks whether the block is failed to be repaired
+func (b *Block) IsRepairFailed() bool {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b.Status == RepairFailed
+}
+
+// HasNoAttempt checks whether there is any downloading / repairing happens on the block
+func (b *Block) HasNoAttempt() bool {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b.Status == NoAttempt
+}
+
+func (b *Block) StartRepair() {
+	b.Lock()
+	defer b.Unlock()
+	b.Status = RepairPending
 }
 
 // GetData returns the chunk data if available
@@ -83,7 +118,7 @@ func (b *Block) GetData() (data []byte) {
 	b.RLock()
 	defer b.RUnlock()
 
-	if b.HasData {
+	if b.Status == DataAvailable {
 		data = b.Data
 	}
 	return
@@ -91,6 +126,10 @@ func (b *Block) GetData() (data []byte) {
 
 // SetData sets the chunk data inside the block
 func (b *Block) SetData(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+
 	if b.IsAvailable() {
 		return
 	}
@@ -99,11 +138,16 @@ func (b *Block) SetData(data []byte) {
 	defer b.Unlock()
 
 	b.Data = data
-	b.HasData = true
+	b.Status = DataAvailable
 }
 
 // Recover recovers the block by xoring two given chunk
 func (b *Block) Recover(v []byte, w []byte) (err error) {
+	if len(v) == 0 || len(w) == 0 {
+		b.Status = RepairFailed
+		err = xerrors.Errorf("invalid recover input!")
+		return
+	}
 	data := XORChunkData(v, w)
 	b.SetData(data)
 	return
@@ -118,16 +162,16 @@ func (b *Block) GetRecoverPairs() (pairs []*BlockPair) {
 
 	if b.IsParity {
 		// backward neighbors
-		r := b.Neighbors[0].Left
-		l := r.Neighbors[b.Strand].Left
+		r := b.LeftNeighbors[0]
+		l := r.LeftNeighbors[b.Strand]
 		if l.IsWrapModified {
-			l = l.Neighbors[0].Left
+			l = l.LeftNeighbors[0]
 		}
 		pairs = append(pairs, &BlockPair{Left: l, Right: r})
 
 		// forward neighbors
-		l = r.Neighbors[0].Right
-		r = l.Neighbors[b.Strand].Right
+		l = r.RightNeighbors[0]
+		r = l.RightNeighbors[b.Strand]
 		if !b.IsWrapModified {
 			pairs = append(pairs, &BlockPair{Left: l, Right: r})
 		}
@@ -136,10 +180,10 @@ func (b *Block) GetRecoverPairs() (pairs []*BlockPair) {
 			l := pair.Left
 			r := pair.Right
 			if l.IsWrapModified {
-				l = l.Neighbors[0].Left
+				l = l.LeftNeighbors[0]
 			} else if r.IsWrapModified {
-				l = r.Neighbors[0].Right
-				r = l.Neighbors[strand].Right
+				l = r.RightNeighbors[0]
+				r = l.RightNeighbors[strand]
 			}
 			pairs = append(pairs, &BlockPair{Left: l, Right: r})
 		}
