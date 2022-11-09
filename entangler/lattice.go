@@ -39,6 +39,7 @@ func NewLattice(alpha int, s int, p int, blockSize int, blockGetter BlockGetter)
 	return
 }
 
+// Init inits the lattice by creating the entire structure in memory
 func (l *Lattice) Init() {
 	l.Once.Do(func() {
 		// Create datablocks
@@ -84,6 +85,20 @@ func (l *Lattice) Init() {
 		}
 
 	})
+}
+
+// GetAllData returns all data in the data blocks as a byte array
+func (l *Lattice) GetAllData() (data []byte, err error) {
+	for i := 0; i < l.DataBlockNum; i++ {
+		var chunk []byte
+		chunk, err = l.GetChunk(i + 1)
+		if err != nil {
+			return
+		}
+		data = append(data, chunk...)
+	}
+
+	return
 }
 
 // GetChunk returns a data chunk in the indexed block
