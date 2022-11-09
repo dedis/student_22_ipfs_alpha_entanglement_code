@@ -6,12 +6,13 @@ import (
 	ipfscluster "ipfs-alpha-entanglement-code/ipfs-cluster"
 	"ipfs-alpha-entanglement-code/util"
 	"os"
+	"time"
 )
 
 func main() {
 	util.Enable_LogPrint()
 
-	defer func() { //catch or finally
+	defer func() {                        //catch or finally
 		if err := recover(); err != nil { //catch
 			fmt.Fprintf(os.Stderr, "Exception: %v\n", err)
 			// os.Exit(1)
@@ -34,7 +35,18 @@ func main() {
 	util.CheckError(err, "fail to execute IPFS cluster peer ls")
 	util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
 
+	cid1 := "QmTy4FELeqWSZLdRehF5HdPeHUaA1uCU5YNf5A2zHxqiFn"
+	cid2 := "QmayFoFM47uNAxxZiibAYXBj2rMfivu2arwd9AhUCrXNDn"
+	err = ipfscluster.AddPin(cid1)
+	util.CheckError(err, "fail to execute IPFS cluster add pin")
+	util.LogPrint(fmt.Sprintf("Pin new cid: %s", cid1))
+	err = ipfscluster.AddPin(cid2)
+	util.CheckError(err, "fail to execute IPFS cluster add pin")
+	util.LogPrint(fmt.Sprintf("Pin new cid: %s", cid2))
+	
+	time.Sleep(time.Second)
+
 	pinStatus, err := ipfscluster.PinStatus("")
-	util.CheckError(err, "fail to execute IPFS cluster peer ls")
+	util.CheckError(err, "fail to execute IPFS cluster pin status")
 	util.LogPrint(fmt.Sprintf("Pinned files: %s", pinStatus))
 }

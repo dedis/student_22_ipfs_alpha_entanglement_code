@@ -59,6 +59,8 @@ func (c *IPFSClusterConnector) PeerLs() (int, error) {
 }
 
 func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
+	/* Check the pin status of all CIDs or a specific CID
+	For the moment, only checks the number of pin peers */
 	var statusURL string
 	var pinStatus string
 	if cid == "" {
@@ -83,9 +85,22 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 	}
 
 	for _, status := range pinInfo {
-		pinStatus += fmt.Sprintf("\n%s pinned by %d peers.", status["cid"].(string),
-			len(status["peer_map"].(map[string]interface{})))
+		var statusMap = status["peer_map"].(map[string]interface{})
+		var pinCount int
+		for key := range statusMap {
+			if statusMap[key].(map[string]interface{})["status"].(string) == "pinned" {
+				pinCount++
+			}
+		}
+		pinStatus += fmt.Sprintf("\n%s pinned by %d peers.", status["cid"].(string), pinCount)
 	}
 
 	return pinStatus, err
+}
+
+func (c *IPFSClusterConnector) AddPin(cid string) error {
+	/* Add a new CID to the cluster,  it uses the default replication
+	factor that is specified in the CLUSTER configuration file */
+	_, err := http.PostForm(c.url+"/pins/ipfs/"+cid, nil)
+	return err
 }
