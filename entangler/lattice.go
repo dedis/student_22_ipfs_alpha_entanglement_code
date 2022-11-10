@@ -26,12 +26,13 @@ type Lattice struct {
 }
 
 // NewLattice creates a new lattice for block downloading and recovering
-func NewLattice(alpha int, s int, p int, blockSize int, blockGetter BlockGetter) (lattice *Lattice) {
+func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter) (lattice *Lattice) {
 	var once sync.Once
 	lattice = &Lattice{
 		Entangler:    *NewEntangler(alpha, s, p),
 		DataBlocks:   make([]*Block, 0),
 		ParityBlocks: make([][]*Block, alpha),
+		DataBlockNum: blockNum,
 		Getter:       blockGetter,
 		Once:         once,
 	}
@@ -88,14 +89,14 @@ func (l *Lattice) Init() {
 }
 
 // GetAllData returns all data in the data blocks as a byte array
-func (l *Lattice) GetAllData() (data []byte, err error) {
+func (l *Lattice) GetAllData() (data [][]byte, err error) {
 	for i := 0; i < l.DataBlockNum; i++ {
 		var chunk []byte
 		chunk, err = l.GetChunk(i + 1)
 		if err != nil {
 			return
 		}
-		data = append(data, chunk...)
+		data = append(data, chunk)
 	}
 
 	return
@@ -178,7 +179,7 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 	myChannel := make(chan []byte, 1)
 	recursiveRecover(block, myCtx, myChannel)
 	data = <-myChannel
-	if len(data) > 0 {
+	if len(data) == 0 {
 		err = xerrors.Errorf("fail to recover the block")
 	}
 

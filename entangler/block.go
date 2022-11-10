@@ -75,6 +75,7 @@ type Block struct {
 // NewBlock creates a block in the lattice
 func NewBlock(index int, parityBlock bool) (block *Block) {
 	block = &Block{
+		RWMutex:  &sync.RWMutex{},
 		Index:    index,
 		IsParity: parityBlock,
 		Status:   NoAttempt,
@@ -107,12 +108,6 @@ func (b *Block) HasNoAttempt() bool {
 	return b.Status == NoAttempt
 }
 
-func (b *Block) StartRepair() {
-	b.Lock()
-	defer b.Unlock()
-	b.Status = RepairPending
-}
-
 // GetData returns the chunk data if available
 func (b *Block) GetData() (data []byte) {
 	b.RLock()
@@ -122,6 +117,13 @@ func (b *Block) GetData() (data []byte) {
 		data = b.Data
 	}
 	return
+}
+
+// StartRepair sets the block's status to RepairPending
+func (b *Block) StartRepair() {
+	b.Lock()
+	defer b.Unlock()
+	b.Status = RepairPending
 }
 
 // SetData sets the chunk data inside the block
