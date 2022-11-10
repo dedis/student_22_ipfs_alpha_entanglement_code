@@ -109,13 +109,16 @@ func (b *Block) HasNoAttempt() bool {
 }
 
 // GetData returns the chunk data if available
-func (b *Block) GetData() (data []byte) {
+func (b *Block) GetData() (data []byte, err error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.Status == DataAvailable {
 		data = b.Data
+	} else {
+		err = xerrors.Errorf("no available data")
 	}
+
 	return
 }
 
@@ -178,14 +181,14 @@ func (b *Block) GetRecoverPairs() (pairs []*BlockPair) {
 			pairs = append(pairs, &BlockPair{Left: l, Right: r})
 		}
 	} else {
-		for strand, pair := range b.recoverPairs {
-			l := pair.Left
-			r := pair.Right
+		for k, _ := range b.LeftNeighbors {
+			l := b.LeftNeighbors[k]
+			r := b.RightNeighbors[k]
 			if l.IsWrapModified {
 				l = l.LeftNeighbors[0]
 			} else if r.IsWrapModified {
 				l = r.RightNeighbors[0]
-				r = l.RightNeighbors[strand]
+				r = l.RightNeighbors[k]
 			}
 			pairs = append(pairs, &BlockPair{Left: l, Right: r})
 		}

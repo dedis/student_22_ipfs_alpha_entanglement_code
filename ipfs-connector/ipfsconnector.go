@@ -2,10 +2,10 @@ package ipfsconnector
 
 import (
 	"fmt"
-	"ipfs-alpha-entanglement-code/entangler"
 	"os"
-
 	sh "github.com/ipfs/go-ipfs-api"
+
+	"ipfs-alpha-entanglement-code/entangler"
 )
 
 // IPFSConnector manages all the interaction with IPFS node
@@ -50,9 +50,9 @@ func (c *IPFSConnector) GetMerkleTree(cid string, lattice *entangler.Lattice) (*
 		if err != nil {
 			return nil, err
 		}
-		
-		rootNode := CreateTreeNode([]byte{})
-		rootNode.CID = cid
+
+rootNode := CreateTreeNode([]byte{})
+				rootNode.CID = cid
 		rootNode.connector = c
 
 		// iterate all links that this block points to

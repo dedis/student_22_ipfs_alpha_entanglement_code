@@ -2,6 +2,7 @@ package entangler
 
 import (
 	"context"
+	"ipfs-alpha-entanglement-code/util"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -9,6 +10,7 @@ import (
 
 type BlockGetter interface {
 	GetData(index int) ([]byte, error)
+	GetParity(index int, strand int) ([]byte, error)
 }
 
 type Lattice struct {
@@ -78,13 +80,15 @@ func (l *Lattice) Init() {
 					// Wrap lattice
 					index := l.getChainStartIndexes(i + 1)[k]
 					rightDataBlock = l.DataBlocks[index-1]
-					rightDataBlock.RightNeighbors[k].IsWrapModified = true
+					if rightDataBlock != datab {
+						rightDataBlock.RightNeighbors[k].IsWrapModified = true
+					}
 				}
 				rightParity.RightNeighbors[0] = rightDataBlock
 				rightDataBlock.LeftNeighbors[k] = rightParity
 			}
 		}
-
+		util.LogPrint("Finish initializing lattice")
 	})
 }
 
@@ -121,9 +125,9 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 	myCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var recursiveRecover func(*Block, context.Context, chan []byte)
-	recursiveRecover = func(block *Block, ctx context.Context, channel chan []byte) {
-		defer func() { channel <- block.GetData() }()
+	var recursiveRecover func(*Block, context.Context, chan bool)
+	recursiveRecover = func(block *Block, ctx context.Context, channel chan bool) {
+		defer func() { channel <- true }()
 
 		select {
 		case <-ctx.Done():
@@ -137,50 +141,93 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 			}
 
 			// download data
-			data, err := l.Getter.GetData(block.Index)
+			err := l.downloadBlock(block)
 			if err == nil {
-				block.SetData(data)
+				util.LogPrint("Index: %d, Parity: %d, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
 				return
 			}
+			util.LogPrint(util.Red("Index: %d, Parity: %d, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
 
 			// repair data
-			success := make(chan bool)
+			pairs := block.GetRecoverPairs()
+			if len(pairs) == 0 {
+				util.LogPrint(util.Red("Index: %d, Parity: %d, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+				return
+			}
 			finish := make(chan bool)
 			counter := 0
-			pairs := block.GetRecoverPairs()
 			for _, mypair := range pairs {
-				go func(pair *BlockPair, ctx context.Context) {
+				util.InfoPrint(util.Yellow("Left - Index: %d, Parity: %d, Strand: %d\nRight - Index: %d, Parity: %d, Strand: %d\n\n"),
+					mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
+					mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
+				go func(pair *BlockPair) {
 					// tell the caller current func is finished
-					defer func() { finish <- true }()
-					resultChan := make(chan []byte, 2)
+					success := false
+					defer func() { finish <- success }()
+
+					resultChan := make(chan bool, 2)
 					go recursiveRecover(pair.Left, ctx, resultChan)
 					go recursiveRecover(pair.Right, ctx, resultChan)
 
-					if block.Recover(<-resultChan, <-resultChan) == nil {
-						success <- true
+					<-resultChan
+					<-resultChan
+					leftChunk, err := pair.Left.GetData()
+					if err != nil {
+						return
 					}
-				}(mypair, ctx)
+					// special case: wrap on itself
+					if pair.Left == pair.Right {
+						block.SetData(leftChunk)
+						success = true
+						return
+					}
+					rightChunk, err := pair.Right.GetData()
+					if err != nil {
+						return
+					}
+
+					if block.Recover(leftChunk, rightChunk) == nil {
+						success = true
+					}
+				}(mypair)
 			}
 			// wait until one recover success, or all routine finishes
 			for {
-				select {
-				case <-success:
+				success := <-finish
+				if success {
+					util.LogPrint("Index: %d, Parity: %d, Strand: %d repaired successfully", block.Index, block.IsParity, block.Strand)
 					return
-				case <-finish:
-					counter++
-					if counter >= len(pairs) {
-						return
-					}
+				}
+				counter++
+				if counter >= len(pairs) {
+					util.LogPrint(util.Red("Index: %d, Parity: %d, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+					return
 				}
 			}
 		}
 	}
 
-	myChannel := make(chan []byte, 1)
+	myChannel := make(chan bool, 1)
 	recursiveRecover(block, myCtx, myChannel)
-	data = <-myChannel
-	if len(data) == 0 {
+	<-myChannel
+	data, err = block.GetData()
+	if err != nil {
 		err = xerrors.Errorf("fail to recover the block")
+	}
+
+	return
+}
+
+// downloadBlock downloads data/parity blocks using the Getter passed in
+func (l *Lattice) downloadBlock(block *Block) (err error) {
+	var data []byte
+	if block.IsParity {
+		data, err = l.Getter.GetParity(block.Index, block.Strand)
+	} else {
+		data, err = l.Getter.GetData(block.Index)
+	}
+	if err == nil {
+		block.SetData(data)
 	}
 
 	return
