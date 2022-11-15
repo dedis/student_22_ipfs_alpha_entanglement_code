@@ -48,7 +48,7 @@ func Test_Entanglement(t *testing.T) {
 				t.Fail()
 				return
 			}
-			err = tangler.WriteEntanglementToFile(outputPaths)
+			err = tangler.WriteEntanglementToFile(0, outputPaths)
 			if err != nil {
 				t.Fail()
 				return
