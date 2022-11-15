@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"strings"
@@ -61,6 +62,7 @@ var blockgetterTest = func() func(*testing.T) {
 
 		// upload entanglements to ipfs
 		var parityCIDs [][]string
+		var parityLeafNodes [][]*ipfsconnector.TreeNode
 		for _, entanglementFilename := range outputPaths {
 			cid, err := c.AddFile(entanglementFilename)
 			// get merkle tree from IPFS and flatten the tree
@@ -75,21 +77,31 @@ var blockgetterTest = func() func(*testing.T) {
 				singleParityCIDs = append(singleParityCIDs, node.CID)
 			}
 			parityCIDs = append(parityCIDs, singleParityCIDs)
+			parityLeafNodes = append(parityLeafNodes, nodesLeaf)
 		}
 
-		// create getter
+		// Create getter
 		getter := ipfsconnector.CreateIPFSGetter(c, dataCIDs, parityCIDs, nodesSwapped)
-		_, err = getter.GetData(1)
-		if err != nil {
-			t.Fail()
+
+		// Verify that we get the expected results
+		for i := 0; i < root.TreeSize; i++ {
+			actualData, err := getter.GetData(i + 1)
+			if err != nil {
+				t.Fail()
+			}
+			expectedData, _ := nodesSwapped[i].Data()
+			require.Equal(t, expectedData, actualData)
 		}
-		_, err = getter.GetData(3)
-		if err != nil {
-			t.Fail()
-		}
-		_, err = getter.GetParity(1, 0)
-		if err != nil {
-			t.Fail()
+
+		for i := 0; i < alpha; i++ {
+			for j := 0; j < root.TreeSize; j++ {
+				actualData, err := getter.GetParity(j+1, i)
+				if err != nil {
+					t.Fail()
+				}
+				expectedData, _ := parityLeafNodes[i][j].Data()
+				require.Equal(t, expectedData, actualData)
+			}
 		}
 	}
 }

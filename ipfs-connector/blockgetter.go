@@ -36,12 +36,12 @@ func (getter *IPFSGetter) GetData(index int) ([]byte, error) {
 		return nil, err
 	}
 
-	index, _ = getter.indexToIndexMap.Get(index)
+	index, _ = getter.indexToIndexMap.Get(index - 1)
 	/* Get the target CID of the block */
-	cid := getter.Data[index-1]
+	cid := getter.Data[index]
 
 	/* get the data, mask to represent the data loss */
-	if _, ok := getter.DataFilter[index-1]; ok {
+	if _, ok := getter.DataFilter[index]; ok {
 		err := xerrors.Errorf("no data exists")
 		return nil, err
 	} else {
