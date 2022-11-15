@@ -11,10 +11,9 @@ import (
 type BlockStatus int
 
 const (
-	NoAttempt     BlockStatus = iota // Did not attempt to download or repair
+	NoData        BlockStatus = iota // Did not attempt to download or repair
 	DataAvailable                    // Data already available
 	RepairPending                    // Repair starts but not finish
-	RepairFailed                     // Repair failed
 )
 
 // BlockPair records a pair of block
@@ -31,6 +30,7 @@ type Block struct {
 	RightNeighbors []*Block
 	IsParity       bool
 	Index          int
+	Repaired       bool
 
 	// parity block parameters
 	Strand         int
@@ -51,7 +51,8 @@ func NewBlock(index int, parityBlock bool) (block *Block) {
 		RWMutex:      &m,
 		Index:        index,
 		IsParity:     parityBlock,
-		Status:       NoAttempt,
+		Status:       NoData,
+		Repaired:     false,
 		once:         once,
 		waitingGroup: sync.NewCond(&m),
 	}
@@ -71,6 +72,13 @@ func (b *Block) GetData() (data []byte, err error) {
 	}
 
 	return
+}
+
+func (b *Block) IsRepaired() bool {
+	b.RLock()
+	b.RUnlock()
+
+	return b.Repaired
 }
 
 // StartRepair sets the block's status to RepairPending if no previous attempt
@@ -106,7 +114,7 @@ func (b *Block) FinishRepair(success bool) {
 		b.waitingGroup.Broadcast()
 	} else {
 		if shouldUpdate {
-			b.Status = RepairFailed
+			b.Status = NoData
 		}
 		b.waitingGroup.Signal()
 	}
@@ -141,6 +149,7 @@ func (b *Block) Recover(v []byte, w []byte) (err error) {
 	if b.Status != DataAvailable {
 		b.Data = data
 		b.Status = DataAvailable
+		b.Repaired = true
 	}
 
 	return

@@ -9,14 +9,14 @@ import (
 )
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
-func Upload(path string, alpha int, s int, p int) error {
-	c, err := ipfsconnector.CreateIPFSConnector(0)
+func (c *Client) Upload(path string, alpha int, s int, p int) error {
+	conn, err := ipfsconnector.CreateIPFSConnector(0)
 	util.CheckError(err, "failed to spawn peer node")
 
 	// add original file to ipfs
-	cid, err := c.AddFile(path)
+	roodCID, err := conn.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
-	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", cid, path)
+	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", roodCID, path)
 
 	if alpha < 1 {
 		// expect no entanglement
@@ -24,7 +24,7 @@ func Upload(path string, alpha int, s int, p int) error {
 	}
 
 	// get merkle tree from IPFS and flatten the tree
-	root, err := c.GetMerkleTree(cid, &entangler.Lattice{})
+	root, err := conn.GetMerkleTree(roodCID, &entangler.Lattice{})
 	util.CheckError(err, "could not read merkle tree")
 	nodes := root.GetFlattenedTree(s, p, true)
 	util.InfoPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
@@ -60,10 +60,23 @@ func Upload(path string, alpha int, s int, p int) error {
 
 	// upload entanglements to ipfs
 	for _, entanglementFilename := range outputPaths {
-		cid, err := c.AddFile(entanglementFilename)
+		cid, err := conn.AddFile(entanglementFilename)
 		util.CheckError(err, "could not add entanglement file to IPFS")
 		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid, entanglementFilename)
 	}
+
+	// Store Metatdata?
+	CIDIndexMap := make(map[string]int)
+	for i, node := range nodes {
+		CIDIndexMap[node.CID] = i
+	}
+	metaData := Metadata{
+		Alpha:       alpha,
+		S:           s,
+		P:           p,
+		CIDIndexMap: CIDIndexMap,
+	}
+	c.AddMetaData(roodCID, &metaData)
 
 	return nil
 }

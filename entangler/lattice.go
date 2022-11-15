@@ -96,7 +96,7 @@ func (l *Lattice) Init() {
 func (l *Lattice) GetAllData() (data [][]byte, err error) {
 	for i := 0; i < l.ChunkNum; i++ {
 		var chunk []byte
-		chunk, err = l.GetChunk(i + 1)
+		chunk, _, err = l.GetChunk(i + 1)
 		if err != nil {
 			return
 		}
@@ -107,9 +107,10 @@ func (l *Lattice) GetAllData() (data [][]byte, err error) {
 }
 
 // GetChunk returns a data chunk in the indexed block
-func (l *Lattice) GetChunk(index int) (data []byte, err error) {
+func (l *Lattice) GetChunk(index int) (data []byte, repaired bool, err error) {
 	block := l.getBlock(index)
 	data, err = l.getDataFromBlock(block)
+	repaired = block.IsRepaired()
 
 	return
 }

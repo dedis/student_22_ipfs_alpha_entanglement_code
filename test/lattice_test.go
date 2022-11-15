@@ -98,8 +98,8 @@ var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{},
 
 		lattice := entangler.NewLattice(alpha, s, p, chunkNum, &getter)
 		lattice.Init()
-
 		util.LogPrint(util.Green("Finish generating lattice"))
+
 		myData, err := lattice.GetAllData()
 		if err != nil {
 			t.Fatal("Fail to generate all data: ", err)

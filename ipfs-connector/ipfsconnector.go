@@ -40,6 +40,12 @@ func (c *IPFSConnector) GetFile(cid string, outputPath string) error {
 	return c.shell.Get(cid, outputPath)
 }
 
+// AddRawData addes raw block data to IPFS netowkr
+func (c *IPFSConnector) AddRawData(data []byte) (cid string, err error) {
+	// TODO
+	return
+}
+
 // GetMerkleTree takes the Merkle tree root CID, constructs the tree and returns the root node
 func (c *IPFSConnector) GetMerkleTree(cid string, lattice *entangler.Lattice) (*TreeNode, error) {
 	currIdx := 0

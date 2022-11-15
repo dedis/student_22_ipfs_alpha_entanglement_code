@@ -13,7 +13,7 @@ func main() {
 	util.Enable_LogPrint()
 	util.Enable_InfoPrint()
 
-	defer func() {                        //catch or finally
+	defer func() { //catch or finally
 		if err := recover(); err != nil { //catch
 			fmt.Fprintf(os.Stderr, "Exception: %v\n", err)
 			// os.Exit(1)
@@ -23,7 +23,8 @@ func main() {
 	alpha, s, p := 3, 5, 5
 	path := "test/data/largeFile.txt"
 
-	err := cmd.Upload(path, alpha, s, p)
+	client := cmd.NewClient()
+	err := client.Upload(path, alpha, s, p)
 	util.CheckError(err, "fail uploading file %s or its entanglement", path)
 
 	/* Simple ipfs cluster test, with GET request */
