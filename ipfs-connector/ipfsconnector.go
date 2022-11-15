@@ -55,19 +55,22 @@ func (c *IPFSConnector) GetMerkleTree(cid string, lattice *entangler.Lattice) (*
 		rootNode := CreateTreeNode([]byte{})
 		rootNode.CID = cid
 		rootNode.connector = c
+		// update node idx
+		rootNode.PreOrderIdx = currIdx
+		currIdx++
 
 		// iterate all links that this block points to
-		for _, link := range rootNodeFile.Links {
-			childNode, err := getMerkleNode(link.Hash)
-			if err != nil {
-				return nil, err
+		if len(rootNodeFile.Links) > 0 {
+			for _, link := range rootNodeFile.Links {
+				childNode, err := getMerkleNode(link.Hash)
+				if err != nil {
+					return nil, err
+				}
+				rootNode.AddChild(childNode)
 			}
-			rootNode.AddChild(childNode)
+		} else {
+			rootNode.LeafSize = 1
 		}
-
-		// update node idx
-		rootNode.PostOrderIdx = currIdx
-		currIdx++
 
 		return rootNode, nil
 	}

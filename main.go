@@ -11,6 +11,7 @@ import (
 
 func main() {
 	util.Enable_LogPrint()
+	util.Enable_InfoPrint()
 
 	defer func() {                        //catch or finally
 		if err := recover(); err != nil { //catch
@@ -43,7 +44,7 @@ func main() {
 	err = ipfscluster.AddPin(cid2)
 	util.CheckError(err, "fail to execute IPFS cluster add pin")
 	util.LogPrint(fmt.Sprintf("Pin new cid: %s", cid2))
-	
+
 	time.Sleep(time.Second)
 
 	pinStatus, err := ipfscluster.PinStatus("")

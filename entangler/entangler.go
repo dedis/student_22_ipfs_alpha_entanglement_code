@@ -83,7 +83,7 @@ func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 }
 
 // WriteEntanglementToFile writes the entanglement into files
-func (e *Entangler) WriteEntanglementToFile(path []string) (err error) {
+func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err error) {
 	if len(path) != e.Alpha {
 		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
 		return
@@ -101,7 +101,14 @@ func (e *Entangler) WriteEntanglementToFile(path []string) (err error) {
 		util.InfoPrint(util.Yellow("Strand %d: "), k)
 		for _, parity := range parities {
 			util.InfoPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
-			entangledData = append(entangledData, parity.Data...)
+			if chunkSize > 0 {
+				c := make([]byte, chunkSize)
+				copy(c, parity.Data)
+				entangledData = append(entangledData, c...)
+			} else {
+				entangledData = append(entangledData, parity.Data...)
+			}
+
 		}
 		util.InfoPrint("\n")
 
