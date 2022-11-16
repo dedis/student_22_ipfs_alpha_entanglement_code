@@ -2,11 +2,12 @@ package test
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var blockgetterTest = func() func(*testing.T) {
@@ -81,7 +82,11 @@ var blockgetterTest = func() func(*testing.T) {
 		}
 
 		// Create getter
-		getter := ipfsconnector.CreateIPFSGetter(c, dataCIDs, parityCIDs, nodesSwapped)
+		cidMap := make(map[string]int)
+		for i, node := range nodesSwapped {
+			cidMap[node.CID] = i
+		}
+		getter := ipfsconnector.CreateIPFSGetter(c, cidMap, parityCIDs)
 
 		// Verify that we get the expected results
 		for i := 0; i < root.TreeSize; i++ {

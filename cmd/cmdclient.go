@@ -7,7 +7,8 @@ type Metadata struct {
 	S     int
 	P     int
 
-	CIDIndexMap map[string]int
+	DataCIDIndexMap map[string]int
+	ParityCIDs      [][]string
 }
 
 type Client struct {
@@ -16,7 +17,7 @@ type Client struct {
 }
 
 func NewClient() (client *Client) {
-	return &Client{Metadata: make(map[string]*Metadata)}
+	return &Client{RWMutex: &sync.RWMutex{}, Metadata: make(map[string]*Metadata)}
 }
 
 func (c *Client) AddMetaData(rootCID string, metadata *Metadata) {
@@ -28,7 +29,7 @@ func (c *Client) AddMetaData(rootCID string, metadata *Metadata) {
 
 func (c *Client) GetMetaData(rootCID string) (metadata *Metadata, ok bool) {
 	c.RLock()
-	defer c.Unlock()
+	defer c.RUnlock()
 
 	metadata, ok = c.Metadata[rootCID]
 	return

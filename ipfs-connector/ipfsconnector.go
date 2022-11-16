@@ -1,12 +1,15 @@
 package ipfsconnector
 
 import (
+	"bytes"
 	"fmt"
+	"math"
 	"os"
 
-	sh "github.com/ipfs/go-ipfs-api"
-
 	"ipfs-alpha-entanglement-code/entangler"
+
+	sh "github.com/ipfs/go-ipfs-api"
+	"github.com/ipfs/kubo/core/coredag"
 )
 
 // IPFSConnector manages all the interaction with IPFS node
@@ -40,9 +43,25 @@ func (c *IPFSConnector) GetFile(cid string, outputPath string) error {
 	return c.shell.Get(cid, outputPath)
 }
 
-// AddRawData addes raw block data to IPFS netowkr
-func (c *IPFSConnector) AddRawData(data []byte) (cid string, err error) {
-	// TODO
+// AddRawData addes raw block data to IPFS network
+func (c *IPFSConnector) AddRawData(chunk []byte) (cid string, err error) {
+	return c.shell.BlockPut(chunk, "v0", "sha2-256", -1)
+}
+
+// GetRawBlock gets raw block data from IPFS network
+func (c *IPFSConnector) GetRawBlock(cid string) (data []byte, err error) {
+	return c.shell.BlockGet(cid)
+}
+
+// GetLinksFromRawBlock extracts the links from the internal node
+func (c *IPFSConnector) GetLinksFromRawBlock(chunk []byte) (CIDs []string, err error) {
+	ipldnodes, err := coredag.ParseInputs("raw", "dag-pb", bytes.NewReader(chunk), math.MaxUint64, -1)
+	if err != nil {
+		return
+	}	
+	for _, link := range ipldnodes[0].Links() {
+		CIDs = append(CIDs, link.Cid.String())
+	}
 	return
 }
 

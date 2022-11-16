@@ -9,18 +9,18 @@ import (
 )
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
-func (c *Client) Upload(path string, alpha int, s int, p int) error {
+func (c *Client) Upload(path string, alpha int, s int, p int) (roodCID string, err error) {
 	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	util.CheckError(err, "failed to spawn peer node")
+	util.CheckError(err, "failed to connect to IPFS node")
 
 	// add original file to ipfs
-	roodCID, err := conn.AddFile(path)
+	roodCID, err = conn.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
 	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", roodCID, path)
 
 	if alpha < 1 {
 		// expect no entanglement
-		return nil
+		return
 	}
 
 	// get merkle tree from IPFS and flatten the tree
@@ -54,29 +54,33 @@ func (c *Client) Upload(path string, alpha int, s int, p int) error {
 	}
 	err = tangler.Entangle(data)
 	util.CheckError(err, "fail to generate entanglement")
-	err = tangler.WriteEntanglementToFile(maxSize, outputPaths)
-	util.CheckError(err, "fail to write entanglement to file")
-	util.LogPrint("Finish generating entanglement")
 
-	// upload entanglements to ipfs
-	for _, entanglementFilename := range outputPaths {
-		cid, err := conn.AddFile(entanglementFilename)
-		util.CheckError(err, "could not add entanglement file to IPFS")
-		util.LogPrint("Finish adding entanglement to IPFS with CID %s. File path: %s", cid, entanglementFilename)
+	// store parity blocks one by one
+	parityCIDs := make([][]string, alpha)
+	for k, parityBlocks := range tangler.ParityBlocks {
+		cids := make([]string, 0)
+		for i, block := range parityBlocks {
+			blockCID, err := conn.AddRawData(block.Data)
+			util.CheckError(err, "fail to upload entanglement %d on Strand %d", i, k)
+			cids = append(cids, blockCID)
+		}
+		parityCIDs[k] = cids
+		util.LogPrint("Finish generating entanglement %d", k)
 	}
 
 	// Store Metatdata?
-	CIDIndexMap := make(map[string]int)
+	cidMap := make(map[string]int)
 	for i, node := range nodes {
-		CIDIndexMap[node.CID] = i
+		cidMap[node.CID] = i + 1
 	}
 	metaData := Metadata{
-		Alpha:       alpha,
-		S:           s,
-		P:           p,
-		CIDIndexMap: CIDIndexMap,
+		Alpha:           alpha,
+		S:               s,
+		P:               p,
+		DataCIDIndexMap: cidMap,
+		ParityCIDs:      parityCIDs,
 	}
 	c.AddMetaData(roodCID, &metaData)
 
-	return nil
+	return
 }

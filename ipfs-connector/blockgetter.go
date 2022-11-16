@@ -10,48 +10,47 @@ import (
 type IPFSGetter struct {
 	entangler.BlockGetter
 	*IPFSConnector
-	Data            []string
+	DataIndexCIDMap SafeMap
 	DataFilter      map[int]struct{}
 	Parity          [][]string
 	ParityFilter    map[int]struct{}
-	indexToIndexMap SafeMap
+
+	BlockNum int
 }
 
-func CreateIPFSGetter(connector *IPFSConnector, dataCIDs []string, parityCIDs [][]string, nodes []*TreeNode) *IPFSGetter {
-	indexToIndexMap := SafeMap{&sync.RWMutex{}, map[int]int{}}
-	for idx, node := range nodes {
-		indexToIndexMap.Add(node.PreOrderIdx, idx)
+func CreateIPFSGetter(connector *IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) *IPFSGetter {
+	indexToDataCIDMap := SafeMap{&sync.RWMutex{}, map[int]string{}}
+	for cid, index := range CIDIndexMap {
+		indexToDataCIDMap.Add(index, cid)
 	}
 	return &IPFSGetter{
 		IPFSConnector:   connector,
-		Data:            dataCIDs,
+		DataIndexCIDMap: indexToDataCIDMap,
 		Parity:          parityCIDs,
-		indexToIndexMap: indexToIndexMap,
+		BlockNum:        len(CIDIndexMap),
 	}
 }
 
 func (getter *IPFSGetter) GetData(index int) ([]byte, error) {
-	if index < 1 || index > len(getter.Data) {
+	/* Get the target CID of the block */
+	cid, ok := getter.DataIndexCIDMap.Get(index)
+	if !ok {
 		err := xerrors.Errorf("invalid index")
 		return nil, err
 	}
 
-	index, _ = getter.indexToIndexMap.Get(index - 1)
-	/* Get the target CID of the block */
-	cid := getter.Data[index]
-
 	/* get the data, mask to represent the data loss */
-	if _, ok := getter.DataFilter[index]; ok {
+	if _, ok = getter.DataFilter[index]; ok {
 		err := xerrors.Errorf("no data exists")
 		return nil, err
 	} else {
-		data, err := getter.shell.BlockGet(cid)
+		data, err := getter.GetRawBlock(cid)
 		return data, err
 	}
 }
 
 func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
-	if index < 1 || index > len(getter.Data) {
+	if index < 1 || index > getter.BlockNum {
 		err := xerrors.Errorf("invalid index")
 		return nil, err
 	}
@@ -68,24 +67,24 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 		err := xerrors.Errorf("no parity exists")
 		return nil, err
 	} else {
-		data, err := getter.shell.BlockGet(cid)
+		data, err := getter.GetRawBlock(cid)
 		return data, err
 	}
 }
 
 type SafeMap struct {
 	*sync.RWMutex
-	unsafeMap map[int]int
+	unsafeMap map[int]string
 }
 
-func (m *SafeMap) Add(key int, val int) {
+func (m *SafeMap) Add(key int, val string) {
 	m.Lock()
 	defer m.Unlock()
 
 	m.unsafeMap[key] = val
 }
 
-func (m *SafeMap) Get(key int) (val int, ok bool) {
+func (m *SafeMap) Get(key int) (val string, ok bool) {
 	m.RLock()
 	defer m.RUnlock()
 
