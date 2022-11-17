@@ -16,7 +16,7 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 	if !ok {
 		err = conn.GetFile(rootCID, path)
 		if err == nil {
-			util.LogPrint("Finish downloading file (no repair)")
+			util.LogPrint("Finish downloading file (no recovery)")
 		}
 
 		return
@@ -37,6 +37,7 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 	walker = func(cid string) (err error) {
 		chunk, hasRepaired, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
 		util.CheckError(err, "fail to recover chunk with CID: %s", cid)
+
 		// upload missing chunk back to the network if allowed
 		repaired = repaired || hasRepaired
 		if allowUpload && hasRepaired {
@@ -70,9 +71,9 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 	err = os.WriteFile(path, data, 0644)
 	if err == nil {
 		if repaired {
-			util.LogPrint("Finish downloading file (repair)")
+			util.LogPrint("Finish downloading file (recovered)")
 		} else {
-			util.LogPrint("Finish downloading file (no repair)")
+			util.LogPrint("Finish downloading file (no recovery)")
 		}
 	}
 

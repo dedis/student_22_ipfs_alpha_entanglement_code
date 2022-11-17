@@ -9,7 +9,7 @@ import (
 
 func main() {
 	util.Enable_LogPrint()
-	util.Enable_InfoPrint()
+	// util.Enable_InfoPrint()
 
 	defer func() { //catch or finally
 		if err := recover(); err != nil { //catch

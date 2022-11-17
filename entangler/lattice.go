@@ -182,7 +182,7 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 					}
 					// special case: wrap on itself
 					if pair.Left == pair.Right {
-						block.SetData(leftChunk)
+						block.SetData(leftChunk, true)
 						success = true
 						return
 					}
@@ -233,7 +233,7 @@ func (l *Lattice) downloadBlock(block *Block) (err error) {
 		data, err = l.Getter.GetData(block.Index)
 	}
 	if err == nil {
-		block.SetData(data)
+		block.SetData(data, false)
 	}
 
 	return

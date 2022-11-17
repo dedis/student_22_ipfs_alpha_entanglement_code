@@ -63,7 +63,7 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 	cid := getter.Parity[strand][index-1]
 
 	/* Get the parity, mask to represent the parity loss */
-	if _, ok := getter.ParityFilter[index-1]; ok {
+	if _, ok := getter.ParityFilter[index]; ok {
 		err := xerrors.Errorf("no parity exists")
 		return nil, err
 	} else {

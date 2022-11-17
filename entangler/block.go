@@ -2,7 +2,6 @@ package entangler
 
 import (
 	"context"
-	"ipfs-alpha-entanglement-code/util"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -76,7 +75,7 @@ func (b *Block) GetData() (data []byte, err error) {
 
 func (b *Block) IsRepaired() bool {
 	b.RLock()
-	b.RUnlock()
+	defer b.RUnlock()
 
 	return b.Repaired
 }
@@ -121,13 +120,14 @@ func (b *Block) FinishRepair(success bool) {
 }
 
 // SetData sets the chunk data inside the block
-func (b *Block) SetData(data []byte) {
+func (b *Block) SetData(data []byte, recover bool) {
 	b.Lock()
 	defer b.Unlock()
 
 	if b.Status != DataAvailable {
 		b.Data = data
 		b.Status = DataAvailable
+		b.Repaired = recover
 	}
 }
 
@@ -142,14 +142,10 @@ func (b *Block) Recover(v []byte, w []byte) (err error) {
 	b.Lock()
 	defer b.Unlock()
 
-	if !(b.Status == RepairPending || b.Status == DataAvailable) {
-		util.LogPrint(util.Magenta("Status %d: Block: %d, Parity: %t, Strand %d"), b.Status, b.Index, b.IsParity, b.Strand)
-	}
-
 	if b.Status != DataAvailable {
+		b.Repaired = true
 		b.Data = data
 		b.Status = DataAvailable
-		b.Repaired = true
 	}
 
 	return
