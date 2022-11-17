@@ -1,15 +1,14 @@
 package ipfsconnector
 
 import (
-	"bytes"
 	"fmt"
-	"math"
 	"os"
 
 	"ipfs-alpha-entanglement-code/entangler"
 
 	sh "github.com/ipfs/go-ipfs-api"
-	"github.com/ipfs/kubo/core/coredag"
+	dag "github.com/ipfs/go-merkledag"
+	unixfs "github.com/ipfs/go-unixfs"
 )
 
 // IPFSConnector manages all the interaction with IPFS node
@@ -53,15 +52,20 @@ func (c *IPFSConnector) GetRawBlock(cid string) (data []byte, err error) {
 	return c.shell.BlockGet(cid)
 }
 
-// GetLinksFromRawBlock extracts the links from the internal node
-func (c *IPFSConnector) GetLinksFromRawBlock(chunk []byte) (CIDs []string, err error) {
-	ipldnodes, err := coredag.ParseInputs("raw", "dag-pb", bytes.NewReader(chunk), math.MaxUint64, -1)
+// GetDagNodeFromRawBytes unmarshals raw bytes into IPFS dagnode
+func (c *IPFSConnector) GetDagNodeFromRawBytes(chunk []byte) (dagnode *dag.ProtoNode, err error) {
+	dagnode, err = dag.DecodeProtobuf(chunk)
+	return
+}
+
+// GetFileDataFromDagNode extracts the real file data from IPFS dagnode
+func (c *IPFSConnector) GetFileDataFromDagNode(dagnode *dag.ProtoNode) (data []byte, err error) {
+	fsn, err := unixfs.FSNodeFromBytes(dagnode.Data())
 	if err != nil {
 		return
-	}	
-	for _, link := range ipldnodes[0].Links() {
-		CIDs = append(CIDs, link.Cid.String())
 	}
+
+	data = fsn.Data()
 	return
 }
 

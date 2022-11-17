@@ -5,7 +5,6 @@ import (
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"os"
-	"strconv"
 )
 
 // Download download the original file, repair it if metadata is provided
@@ -47,18 +46,21 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 			}
 		}
 
-		links, err := conn.GetLinksFromRawBlock(chunk)
+		// unmarshal and iterate
+		dagNode, err := conn.GetDagNodeFromRawBytes(chunk)
 		util.CheckError(err, "fail to parse raw data")
+		links := dagNode.Links()
 		if len(links) > 0 {
 			for _, link := range links {
-				err = walker(link)
+				err = walker(link.Cid.String())
 				if err != nil {
 					return
 				}
 			}
 		} else {
-			data = append(data, chunk...)
-			os.WriteFile(strconv.Itoa(len(data)), chunk, 0644)
+			fileChunkData, err := conn.GetFileDataFromDagNode(dagNode)
+			util.CheckError(err, "fail to parse file data")
+			data = append(data, fileChunkData...)
 		}
 		return
 	}
