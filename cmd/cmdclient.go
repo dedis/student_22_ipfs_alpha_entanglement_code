@@ -9,6 +9,7 @@ type Metadata struct {
 
 	DataCIDIndexMap map[string]int
 	ParityCIDs      [][]string
+	DataFilter      map[int]struct{}
 }
 
 type Client struct {

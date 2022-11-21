@@ -25,6 +25,7 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 	chunkNum := len(metaData.DataCIDIndexMap)
 	// create getter
 	getter := ipfsconnector.CreateIPFSGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+	getter.DataFilter = metaData.DataFilter
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter)
 	lattice.Init()
