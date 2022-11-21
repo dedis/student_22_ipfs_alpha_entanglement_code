@@ -15,15 +15,21 @@ var blockgetterTest = func() func(*testing.T) {
 		alpha, s, p := 3, 5, 5
 		path := "data/largeFile.txt"
 		c, err := ipfsconnector.CreateIPFSConnector(0)
-
+		if err != nil {
+			t.Fatal(err)
+		}
 		// add original file to ipfs
 		cid, err := c.AddFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		// get merkle tree from IPFS and flatten the tree
 		root, err := c.GetMerkleTree(cid, &entangler.Lattice{})
 		if err != nil {
-			t.Fail()
+			t.Fatal(err)
 		}
+
 		nodesNotSwapped := root.GetFlattenedTree(s, p, false)
 		nodesSwapped := root.GetFlattenedTree(s, p, true)
 
@@ -38,7 +44,7 @@ var blockgetterTest = func() func(*testing.T) {
 		for _, node := range nodesSwapped {
 			nodeData, err := node.Data()
 			if err != nil {
-				t.Fail()
+				t.Fatal(err)
 			}
 			data <- nodeData
 			if len(nodeData) > maxSize {
@@ -54,11 +60,11 @@ var blockgetterTest = func() func(*testing.T) {
 		}
 		err = tangler.Entangle(data)
 		if err != nil {
-			t.Fail()
+			t.Fatal(err)
 		}
 		err = tangler.WriteEntanglementToFile(maxSize, outputPaths)
 		if err != nil {
-			t.Fail()
+			t.Fatal(err)
 		}
 
 		// upload entanglements to ipfs
@@ -66,10 +72,13 @@ var blockgetterTest = func() func(*testing.T) {
 		var parityLeafNodes [][]*ipfsconnector.TreeNode
 		for _, entanglementFilename := range outputPaths {
 			cid, err := c.AddFile(entanglementFilename)
+			if err != nil {
+				t.Fatal(err)
+			}
 			// get merkle tree from IPFS and flatten the tree
 			root, err := c.GetMerkleTree(cid, &entangler.Lattice{})
 			if err != nil {
-				t.Fail()
+				t.Fatal(err)
 			}
 			nodesLeaf := root.GetLeafNodes()
 
@@ -92,7 +101,7 @@ var blockgetterTest = func() func(*testing.T) {
 		for i := 0; i < root.TreeSize; i++ {
 			actualData, err := getter.GetData(i + 1)
 			if err != nil {
-				t.Fail()
+				t.Fatal(err)
 			}
 			expectedData, _ := nodesSwapped[i].Data()
 			require.Equal(t, expectedData, actualData)
@@ -102,7 +111,7 @@ var blockgetterTest = func() func(*testing.T) {
 			for j := 0; j < root.TreeSize; j++ {
 				actualData, err := getter.GetParity(j+1, i)
 				if err != nil {
-					t.Fail()
+					t.Fatal(err)
 				}
 				expectedData, _ := parityLeafNodes[i][j].Data()
 				require.Equal(t, expectedData, actualData)
