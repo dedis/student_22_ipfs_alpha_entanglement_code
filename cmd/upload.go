@@ -1,31 +1,32 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"ipfs-alpha-entanglement-code/entangler"
-	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
-func (c *Client) Upload(path string, alpha int, s int, p int) (roodCID string, err error) {
-	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	util.CheckError(err, "failed to connect to IPFS node")
-
+func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, err error) {
 	// add original file to ipfs
-	roodCID, err = conn.AddFile(path)
+	rootCID, err = c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
-	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", roodCID, path)
+	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", rootCID, path)
 
 	if alpha < 1 {
 		// expect no entanglement
-		return
+		return rootCID, "", nil
 	}
 
 	// get merkle tree from IPFS and flatten the tree
-	root, err := conn.GetMerkleTree(roodCID, &entangler.Lattice{})
-	util.CheckError(err, "could not read merkle tree")
+	root, err := c.GetMerkleTree(rootCID, &entangler.Lattice{})
+	if err != nil {
+		return rootCID, "", xerrors.Errorf("could not read merkle tree: %s", err)
+	}
 	nodes := root.GetFlattenedTree(s, p, true)
 	util.InfoPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), len(nodes))
 	for _, node := range nodes {
@@ -39,7 +40,9 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (roodCID string, e
 	maxSize := 0
 	for _, node := range nodes {
 		nodeData, err := node.Data()
-		util.CheckError(err, "fail to load chunk data from IPFS")
+		if err != nil {
+			return rootCID, "", xerrors.Errorf("could not load chunk data from IPFS: %s", err)
+		}
 		data <- nodeData
 		if len(nodeData) > maxSize {
 			maxSize = len(nodeData)
@@ -53,15 +56,19 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (roodCID string, e
 		outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(path, ".")[0], k)
 	}
 	err = tangler.Entangle(data)
-	util.CheckError(err, "fail to generate entanglement")
+	if err != nil {
+		return rootCID, "", xerrors.Errorf("could not generate entanglement: %s", err)
+	}
 
 	// store parity blocks one by one
 	parityCIDs := make([][]string, alpha)
 	for k, parityBlocks := range tangler.ParityBlocks {
 		cids := make([]string, 0)
 		for i, block := range parityBlocks {
-			blockCID, err := conn.AddRawData(block.Data)
-			util.CheckError(err, "fail to upload entanglement %d on Strand %d", i, k)
+			blockCID, err := c.AddAndPinAsRaw(block.Data, 0)
+			if err != nil {
+				return rootCID, "", xerrors.Errorf("could not upload entanglement %d on Strand %d: %s", i, k, err)
+			}
 			cids = append(cids, blockCID)
 		}
 		parityCIDs[k] = cids
@@ -77,10 +84,18 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (roodCID string, e
 		Alpha:           alpha,
 		S:               s,
 		P:               p,
+		RootCID:         rootCID,
 		DataCIDIndexMap: cidMap,
 		ParityCIDs:      parityCIDs,
 	}
-	c.AddMetaData(roodCID, &metaData)
+	rawMetadata, err := json.Marshal(metaData)
+	if err != nil {
+		return rootCID, "", xerrors.Errorf("could not marshal metadata: %s", err)
+	}
+	metaCID, err = c.AddAndPinAsFile(rawMetadata, 0)
+	if err != nil {
+		return rootCID, "", xerrors.Errorf("could not upload metadata: %s", err)
+	}
 
-	return
+	return rootCID, metaCID, nil
 }

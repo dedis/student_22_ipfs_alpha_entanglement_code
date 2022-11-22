@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-func Test_Clusterconnector_Simple(t *testing.T) {
+func Test_Cluster_Simple(t *testing.T) {
+	util.Enable_LogPrint()
 	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
 	peerName, err := ipfscluster.PeerInfo()
 	if err != nil {

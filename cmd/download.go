@@ -1,31 +1,42 @@
 package cmd
 
 import (
+	"fmt"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"os"
+
+	"golang.org/x/xerrors"
 )
 
 // Download download the original file, repair it if metadata is provided
-func (c *Client) Download(rootCID string, path string, allowUpload bool) (err error) {
-	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	util.CheckError(err, "failed to connect to IPFS node")
-
-	metaData, ok := c.GetMetaData(rootCID)
-	if !ok {
-		err = conn.GetFile(rootCID, path)
-		if err == nil {
-			util.LogPrint("Finish downloading file (no recovery)")
+func (c *Client) Download(rootCID string, metaCID string, path string, allowUpload bool, dataFilter map[int]struct{}) (err error) {
+	// direct downloading if no metafile provided
+	if len(metaCID) == 0 {
+		fmt.Println(err)
+		// try to down original file using given rootCID (i.e. no metafile)
+		err = c.GetFile(rootCID, path)
+		if err != nil {
+			return xerrors.Errorf("fail to download original file: %s", err)
 		}
+		util.LogPrint("Finish downloading file (no recovery)")
 
-		return
+		return nil
 	}
+
+	// download metafile
+	// TODO: lazy downloading?
+	metaData, err := c.GetMetaData(metaCID)
+	if err != nil {
+		return xerrors.Errorf("fail to download metaData: %s", err)
+	}
+	util.LogPrint("Finish downloading metaFile")
 
 	chunkNum := len(metaData.DataCIDIndexMap)
 	// create getter
-	getter := ipfsconnector.CreateIPFSGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
-	getter.DataFilter = metaData.DataFilter
+	getter := ipfsconnector.CreateIPFSGetter(c.IPFSConnector, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+	getter.DataFilter = dataFilter
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter)
 	lattice.Init()
@@ -37,20 +48,24 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 	var walker func(string) error
 	walker = func(cid string) (err error) {
 		chunk, hasRepaired, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
-		util.CheckError(err, "fail to recover chunk with CID: %s", cid)
+		if err != nil {
+			return xerrors.Errorf("fail to recover chunk with CID: %s", err)
+		}
 
 		// upload missing chunk back to the network if allowed
 		repaired = repaired || hasRepaired
 		if allowUpload && hasRepaired {
-			uploadCID, err := conn.AddRawData(chunk)
+			uploadCID, err := c.AddRawData(chunk)
 			if err != nil || uploadCID != cid {
-				util.ThrowError("fail to upload the repaired chunk to IPFS")
+				return xerrors.Errorf("fail to upload the repaired chunk to IPFS: %s", err)
 			}
 		}
 
 		// unmarshal and iterate
-		dagNode, err := conn.GetDagNodeFromRawBytes(chunk)
-		util.CheckError(err, "fail to parse raw data")
+		dagNode, err := c.GetDagNodeFromRawBytes(chunk)
+		if err != nil {
+			return xerrors.Errorf("fail to parse raw data: %s", err)
+		}
 		links := dagNode.Links()
 		if len(links) > 0 {
 			for _, link := range links {
@@ -60,13 +75,15 @@ func (c *Client) Download(rootCID string, path string, allowUpload bool) (err er
 				}
 			}
 		} else {
-			fileChunkData, err := conn.GetFileDataFromDagNode(dagNode)
-			util.CheckError(err, "fail to parse file data")
+			fileChunkData, err := c.GetFileDataFromDagNode(dagNode)
+			if err != nil {
+				return xerrors.Errorf("fail to parse file data: %s", err)
+			}
 			data = append(data, fileChunkData...)
 		}
 		return
 	}
-	walker(rootCID)
+	walker(metaData.RootCID)
 
 	// write to file in the given path
 	err = os.WriteFile(path, data, 0644)

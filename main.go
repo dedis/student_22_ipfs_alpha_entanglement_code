@@ -23,14 +23,14 @@ func main() {
 	path := "test/data/largeFile.txt"
 	outpath := "test/data/downloaded_largeFile.txt"
 
-	client := cmd.NewClient()
-	cid, err := client.Upload(path, alpha, s, p)
+	client, err := cmd.NewClient()
+	util.CheckError(err, "fail to create client: ", path)
+	fileCID, metaCID, err := client.Upload(path, alpha, s, p)
 	util.CheckError(err, "fail uploading file %s or its entanglement", path)
 
-	metadata := client.Metadata[cid]
-	metadata.DataFilter = map[int]struct{}{1: {}, 3: {}}
-
-	err = client.Download(cid, outpath, true)
+	dataFilter := map[int]struct{}{2: {}, 5: {}}
+	fmt.Println("Pretend Block loss: DataBlock(Index=1) and DataBlock(Index=3)")
+	err = client.Download(fileCID, metaCID, outpath, true, dataFilter)
 	util.CheckError(err, "fail downloading file %s", path)
 
 	cmdExecutor := exec.Command("diff", path, outpath)
