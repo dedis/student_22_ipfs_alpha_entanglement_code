@@ -30,7 +30,13 @@ func main() {
 
 	dataFilter := map[int]struct{}{2: {}, 5: {}}
 	fmt.Println("Pretend Block loss: DataBlock(Index=1) and DataBlock(Index=3)")
-	err = client.Download(fileCID, metaCID, outpath, true, dataFilter)
+
+	option := cmd.DownloadOption{
+		MetaCID:           metaCID,
+		UploadRecoverData: true,
+		DataFilter:        dataFilter,
+	}
+	err = client.Download(fileCID, outpath, option)
 	util.CheckError(err, "fail downloading file %s", path)
 
 	cmdExecutor := exec.Command("diff", path, outpath)

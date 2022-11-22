@@ -10,10 +10,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type DownloadOption struct {
+	MetaCID           string
+	UploadRecoverData bool
+	DataFilter        map[int]struct{}
+}
+
 // Download download the original file, repair it if metadata is provided
-func (c *Client) Download(rootCID string, metaCID string, path string, allowUpload bool, dataFilter map[int]struct{}) (err error) {
+func (c *Client) Download(rootCID string, path string, option DownloadOption) (err error) {
 	// direct downloading if no metafile provided
-	if len(metaCID) == 0 {
+	if len(option.MetaCID) == 0 {
 		fmt.Println(err)
 		// try to down original file using given rootCID (i.e. no metafile)
 		err = c.GetFile(rootCID, path)
@@ -27,7 +33,7 @@ func (c *Client) Download(rootCID string, metaCID string, path string, allowUplo
 
 	// download metafile
 	// TODO: lazy downloading?
-	metaData, err := c.GetMetaData(metaCID)
+	metaData, err := c.GetMetaData(option.MetaCID)
 	if err != nil {
 		return xerrors.Errorf("fail to download metaData: %s", err)
 	}
@@ -36,7 +42,7 @@ func (c *Client) Download(rootCID string, metaCID string, path string, allowUplo
 	chunkNum := len(metaData.DataCIDIndexMap)
 	// create getter
 	getter := ipfsconnector.CreateIPFSGetter(c.IPFSConnector, metaData.DataCIDIndexMap, metaData.ParityCIDs)
-	getter.DataFilter = dataFilter
+	getter.DataFilter = option.DataFilter
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter)
 	lattice.Init()
@@ -54,7 +60,7 @@ func (c *Client) Download(rootCID string, metaCID string, path string, allowUplo
 
 		// upload missing chunk back to the network if allowed
 		repaired = repaired || hasRepaired
-		if allowUpload && hasRepaired {
+		if option.UploadRecoverData && hasRepaired {
 			uploadCID, err := c.AddRawData(chunk)
 			if err != nil || uploadCID != cid {
 				return xerrors.Errorf("fail to upload the repaired chunk to IPFS: %s", err)
