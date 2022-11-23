@@ -13,7 +13,7 @@ import (
 type DownloadOption struct {
 	MetaCID           string
 	UploadRecoverData bool
-	DataFilter        map[int]struct{}
+	DataFilter        []int
 }
 
 // Download download the original file, repair it if metadata is provided
@@ -42,7 +42,13 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (e
 	chunkNum := len(metaData.DataCIDIndexMap)
 	// create getter
 	getter := ipfsconnector.CreateIPFSGetter(c.IPFSConnector, metaData.DataCIDIndexMap, metaData.ParityCIDs)
-	getter.DataFilter = option.DataFilter
+	if len(option.DataFilter) > 0 {
+		getter.DataFilter = make(map[int]struct{}, len(option.DataFilter))
+		for _, index := range option.DataFilter {
+			getter.DataFilter[index] = struct{}{}
+		}
+	}
+
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter)
 	lattice.Init()

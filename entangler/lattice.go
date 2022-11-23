@@ -98,12 +98,12 @@ func (l *Lattice) GetAllData() (data [][]byte, err error) {
 		var chunk []byte
 		chunk, _, err = l.GetChunk(i + 1)
 		if err != nil {
-			return
+			return data, err
 		}
 		data = append(data, chunk)
 	}
 
-	return
+	return data, nil
 }
 
 // GetChunk returns a data chunk in the indexed block
@@ -112,13 +112,13 @@ func (l *Lattice) GetChunk(index int) (data []byte, repaired bool, err error) {
 	data, err = l.getDataFromBlock(block)
 	repaired = block.IsRepaired()
 
-	return
+	return data, repaired, err
 }
 
 // getBlock returns an original data block with the given index
 func (l *Lattice) getBlock(index int) (block *Block) {
 	block = l.DataBlocks[index-1]
-	return
+	return block
 }
 
 // getDataFromBlock recovers a block with missing chunk using the lattice
@@ -221,7 +221,7 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.", block.Index, block.IsParity, block.Strand, err)
 	}
 
-	return
+	return data, err
 }
 
 // downloadBlock downloads data/parity blocks using the Getter passed in
@@ -236,5 +236,5 @@ func (l *Lattice) downloadBlock(block *Block) (err error) {
 		block.SetData(data, false)
 	}
 
-	return
+	return err
 }

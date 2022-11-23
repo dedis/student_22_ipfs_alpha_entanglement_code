@@ -6,6 +6,7 @@ import (
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"os"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
 
@@ -23,6 +24,8 @@ type Metadata struct {
 type Client struct {
 	*ipfsconnector.IPFSConnector
 	*ipfscluster.IPFSClusterConnector
+
+	*cobra.Command
 }
 
 // NewClient creates a new client for futhur use
@@ -37,10 +40,13 @@ func NewClient() (client *Client, err error) {
 		return nil, xerrors.Errorf("fail to connect to cluster: %s", err)
 	}
 
-	return &Client{
+	client = &Client{
 		IPFSConnector:        conn,
 		IPFSClusterConnector: conn2,
-	}, nil
+	}
+	client.initCmd()
+
+	return client, nil
 }
 
 // AddAndPinAsFile adds a file to IPFS network and pin the file in cluster with a replication factor

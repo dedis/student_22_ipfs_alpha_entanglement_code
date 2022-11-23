@@ -37,7 +37,7 @@ type EntangledBlock struct {
 func NewEntangledBlock(l int, r int, data []byte, strand int) (block *EntangledBlock) {
 	block = &EntangledBlock{LeftBlockIndex: l, RightBlockIndex: r, Data: data, Strand: StrandClass(strand)}
 
-	return
+	return block
 }
 
 // Entangler manages all the entanglement related behaviors
@@ -79,19 +79,19 @@ func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 		entangler.MaxChainNumPerStrand = p
 	}
 
-	return
+	return entangler
 }
 
 // WriteEntanglementToFile writes the entanglement into files
 func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err error) {
 	if len(path) != e.Alpha {
 		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
-		return
+		return err
 	}
 
 	if !e.finished {
 		err = xerrors.Errorf("No entanglement has been done")
-		return
+		return err
 	}
 
 	for k := 0; k < e.Alpha; k++ {
@@ -114,10 +114,12 @@ func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err e
 
 		// write entanglement to file
 		err = os.WriteFile(path[k], entangledData, 0644)
-		util.CheckError(err, "fail to write entanglement file")
+		if err != nil {
+			return err
+		}
 	}
 
-	return
+	return err
 }
 
 // Entangle generate the entangelement for the given arrray of blocks
@@ -232,7 +234,7 @@ func (e *Entangler) getChainIndexes(index int) (indexes []int) {
 
 	indexes = []int{h, rh, lh}
 
-	return
+	return indexes
 }
 
 // getChainStartIndexes returns the position of the first node on the chain where the indexed node is on
@@ -242,7 +244,7 @@ func (e *Entangler) getChainStartIndexes(index int) (indexes []int) {
 	indexes[1] = (e.P-indexes[1])%e.P + 1
 	indexes[2] += 1
 
-	return
+	return indexes
 }
 
 // getBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
@@ -271,7 +273,7 @@ func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
 
 	indexes = []int{h, rh, lh}
 
-	return
+	return indexes
 }
 
 // getForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
@@ -300,7 +302,7 @@ func (e *Entangler) getForwardNeighborIndexes(index int) (indexes []int) {
 
 	indexes = []int{h, rh, lh}
 
-	return
+	return indexes
 }
 
 // IsValidIndex checks if the index is inside the lattice
