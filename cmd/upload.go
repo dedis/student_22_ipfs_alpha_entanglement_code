@@ -6,6 +6,7 @@ import (
 	"ipfs-alpha-entanglement-code/entangler"
 	"ipfs-alpha-entanglement-code/util"
 	"strings"
+	"sync"
 
 	"golang.org/x/xerrors"
 )
@@ -58,16 +59,30 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	// store parity blocks one by one
 	parityCIDs := make([][]string, alpha)
+	for k := 0; k < alpha; k++ {
+		parityCIDs[k] = make([]string, len(nodes))
+	}
 	for k, parityBlocks := range tangler.ParityBlocks {
-		cids := make([]string, 0)
+		var waitGroup sync.WaitGroup
+
 		for i, block := range parityBlocks {
-			blockCID, err := c.AddAndPinAsRaw(block.Data, 0)
-			if err != nil {
-				return rootCID, "", xerrors.Errorf("could not upload entanglement %d on Strand %d: %s", i, k, err)
-			}
-			cids = append(cids, blockCID)
+			waitGroup.Add(1)
+			go func(k int, i int, block *entangler.EntangledBlock) {
+				defer waitGroup.Done()
+
+				blockCID, err := c.AddAndPinAsRaw(block.Data, 0)
+				if err == nil {
+					parityCIDs[k][i] = blockCID
+				}
+			}(k, i, block)
 		}
-		parityCIDs[k] = cids
+
+		waitGroup.Wait()
+		for i, parity := range parityCIDs[k] {
+			if len(parity) == 0 {
+				return rootCID, "", xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
+			}
+		}
 		util.LogPrint("Finish generating entanglement %d", k)
 	}
 
