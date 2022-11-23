@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
@@ -67,9 +68,15 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (e
 		// upload missing chunk back to the network if allowed
 		repaired = repaired || hasRepaired
 		if option.UploadRecoverData && hasRepaired {
+			// TODO: does trimming zero always works?
+			chunk = bytes.Trim(chunk, "\x00")
 			uploadCID, err := c.AddRawData(chunk)
-			if err != nil || uploadCID != cid {
+			if err != nil {
 				return xerrors.Errorf("fail to upload the repaired chunk to IPFS: %s", err)
+			}
+			if uploadCID != cid {
+				fmt.Printf(util.Magenta("%d, %d\n"), metaData.DataCIDIndexMap[cid], len(chunk))
+				return xerrors.Errorf("incorrect CID of the repaired chunk. Expected: %s, Got: %s", cid, uploadCID)
 			}
 		}
 
@@ -83,7 +90,7 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (e
 			for _, link := range links {
 				err = walker(link.Cid.String())
 				if err != nil {
-					return
+					return err
 				}
 			}
 		} else {
@@ -93,9 +100,12 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (e
 			}
 			data = append(data, fileChunkData...)
 		}
-		return
+		return err
 	}
-	walker(metaData.RootCID)
+	err = walker(metaData.RootCID)
+	if err != nil {
+		return err
+	}
 
 	// write to file in the given path
 	err = os.WriteFile(path, data, 0644)

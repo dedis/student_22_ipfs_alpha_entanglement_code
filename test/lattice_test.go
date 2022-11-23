@@ -138,9 +138,9 @@ func Test_Lattice_Single_Data_Lost(t *testing.T) {
 		util.LogPrint("Missing Position: %d\n", missed)
 		return getTest(chunkNum, chunkSize, map[int]struct{}{missed: {}}, []map[int]struct{}{})
 	}
-	t.Run("middle", missedMiddle(25, 32))
-	t.Run("front", missedFront(25, 32))
-	t.Run("end", missedEnd(25, 32))
+	t.Run("middle", missedMiddle(81, 32))
+	t.Run("front", missedFront(81, 32))
+	t.Run("end", missedEnd(81, 32))
 }
 
 func Test_Lattice_Multiple_Data_Lost(t *testing.T) {

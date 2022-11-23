@@ -37,16 +37,12 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	// generate entanglement
 	data := make(chan []byte, len(nodes))
-	maxSize := 0
 	for _, node := range nodes {
 		nodeData, err := node.Data()
 		if err != nil {
 			return rootCID, "", xerrors.Errorf("could not load chunk data from IPFS: %s", err)
 		}
 		data <- nodeData
-		if len(nodeData) > maxSize {
-			maxSize = len(nodeData)
-		}
 	}
 	close(data)
 	tangler := entangler.NewEntangler(alpha, s, p)
