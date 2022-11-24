@@ -56,36 +56,16 @@ var blockgetterTest = func() func(*testing.T) {
 		outputPaths := make([]string, alpha)
 		for k := 0; k < alpha; k++ {
 			outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(path, ".")[0], k)
+			defer os.Remove(outputPaths[k])
 		}
 		parityChan := make(chan entangler.EntangledBlock, alpha*len(nodesSwapped))
 		err = tangler.Entangle(data, parityChan)
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		parities := make([][][]byte, alpha)
-		for k := 0; k < alpha; k++ {
-			parities[k] = make([][]byte, len(nodesSwapped))
-		}
-		for parity := range parityChan {
-			c := make([]byte, maxSize)
-			copy(c, parity.Data)
-			parities[parity.Strand][parity.LeftBlockIndex-1] = c
-		}
-
-		for k := 0; k < alpha; k++ {
-			// generate byte array of the current strand
-			entangledData := make([]byte, 0)
-			for _, parityData := range parities[k] {
-				entangledData = append(entangledData, parityData...)
-			}
-
-			// write entanglement to file
-			err = os.WriteFile(outputPaths[k], entangledData, 0644)
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
+		err = tangler.WriteEntanglementToFile(maxSize, outputPaths, parityChan)
+		if err != nil {
+			t.Fatal(err)
 		}
 
 		// upload entanglements to ipfs

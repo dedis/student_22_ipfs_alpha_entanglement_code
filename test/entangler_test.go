@@ -42,54 +42,32 @@ func Test_Entanglement(t *testing.T) {
 			outputPaths := make([]string, 3)
 			for k := 0; k < alpha; k++ {
 				outputPaths[k] = fmt.Sprintf("data/entangler/my_%s_entanglement_%d", input, k)
+				defer os.Remove(outputPaths[k])
 			}
 
 			parityChan := make(chan entangler.EntangledBlock, alpha*len(data))
 			err = tangler.Entangle(dataChan, parityChan)
 			if err != nil {
-				t.Fail()
-				return
+				t.Fatal(err)
 			}
-
-			parities := make([][][]byte, alpha)
-			for k := 0; k < alpha; k++ {
-				parities[k] = make([][]byte, len(data))
-			}
-			for parity := range parityChan {
-				parities[parity.Strand][parity.LeftBlockIndex-1] = parity.Data
-			}
-
-			for k := 0; k < alpha; k++ {
-				// generate byte array of the current strand
-				entangledData := make([]byte, 0)
-				for _, parityData := range parities[k] {
-					entangledData = append(entangledData, parityData...)
-				}
-
-				// write entanglement to file
-				err = os.WriteFile(outputPaths[k], entangledData, 0644)
-				if err != nil {
-					t.Fail()
-					return
-				}
+			err = tangler.WriteEntanglementToFile(0, outputPaths, parityChan)
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			for k := 0; k < alpha; k++ {
 				expectedResult, err := os.ReadFile(outputPaths[k])
 				if err != nil {
-					t.Fail()
-					return
+					t.Fatal(err)
 				}
 				myResult, err := os.ReadFile(outputPaths[k])
 				if err != nil {
-					t.Fail()
-					return
+					t.Fatal(err)
 				}
 				util.CheckError(err, "fail to read horizaontal entanglement file")
 				res := bytes.Compare(myResult, expectedResult)
 				if res != 0 {
-					fmt.Printf(util.Red("Strand %d not equal: %d\n"), k, res)
-					t.Fail()
+					t.Fatal(util.Red("Strand %d not equal: %d\n"), k, res)
 				} else {
 					fmt.Printf(util.Green("Strand %d equal\n"), k)
 				}

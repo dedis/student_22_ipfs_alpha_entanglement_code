@@ -2,6 +2,9 @@ package entangler
 
 import (
 	"ipfs-alpha-entanglement-code/util"
+	"os"
+
+	"golang.org/x/xerrors"
 )
 
 // Position defines which position category the original block belongs
@@ -75,45 +78,45 @@ func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 	return entangler
 }
 
-// // WriteEntanglementToFile writes the entanglement into files
-// func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err error) {
-// 	if len(path) != e.Alpha {
-// 		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
-// 		return err
-// 	}
+// WriteEntanglementToFile writes the entanglement into files
+func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string, parityChan chan EntangledBlock) (err error) {
+	if len(path) != e.Alpha {
+		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
+		return err
+	}
 
-// 	if !e.finished {
-// 		err = xerrors.Errorf("No entanglement has been done")
-// 		return err
-// 	}
+	parities := make([][][]byte, e.Alpha)
+	for k := 0; k < e.Alpha; k++ {
+		parities[k] = make([][]byte, e.ChunkNum)
+	}
+	for parity := range parityChan {
+		util.InfoPrint(util.Yellow("Strand %d: (%d, %d)\n"), parity.Strand, parity.LeftBlockIndex, parity.RightBlockIndex)
+		parities[parity.Strand][parity.LeftBlockIndex-1] = parity.Data
+	}
 
-// 	for k := 0; k < e.Alpha; k++ {
-// 		// generate byte array of the current strand
-// 		entangledData := make([]byte, 0)
-// 		parities := e.ParityBlocks[k]
-// 		util.InfoPrint(util.Yellow("Strand %d: "), k)
-// 		for _, parity := range parities {
-// 			util.InfoPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
-// 			if chunkSize > 0 {
-// 				c := make([]byte, chunkSize)
-// 				copy(c, parity.Data)
-// 				entangledData = append(entangledData, c...)
-// 			} else {
-// 				entangledData = append(entangledData, parity.Data...)
-// 			}
+	for k := 0; k < e.Alpha; k++ {
+		// generate byte array of the current strand
+		entangledData := make([]byte, 0)
+		for _, parityData := range parities[k] {
+			if chunkSize > 0 {
+				c := make([]byte, chunkSize)
+				copy(c, parityData)
+				entangledData = append(entangledData, c...)
+			} else {
+				entangledData = append(entangledData, parityData...)
+			}
+			entangledData = append(entangledData, parityData...)
+		}
 
-// 		}
-// 		util.InfoPrint("\n")
+		// write entanglement to file
+		err = os.WriteFile(path[k], entangledData, 0644)
+		if err != nil {
+			return err
+		}
+	}
 
-// 		// write entanglement to file
-// 		err = os.WriteFile(path[k], entangledData, 0644)
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return err
-// }
+	return err
+}
 
 // Entangle generate the entangelement for the given arrray of blocks
 func (e *Entangler) Entangle(dataChan chan []byte, parityChan chan EntangledBlock) error {

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// initCmd inits cmd for user interaction
 func (c *Client) initCmd() {
 	c.Command = &cobra.Command{
 		Use: "entangler",
@@ -16,6 +17,7 @@ func (c *Client) initCmd() {
 	c.AddDownloadCmd()
 }
 
+// AddUploadCmd enables upload functionality
 func (c *Client) AddUploadCmd() {
 	var alpha, s, p int
 	uploadCmd := &cobra.Command{
@@ -32,7 +34,7 @@ func (c *Client) AddUploadCmd() {
 				fmt.Println("Finish adding metaData to IPFS. MetaFile CID: ", metaCID)
 			}
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("Error:", err)
 				os.Exit(1)
 			}
 			fmt.Println("Upload succeeds.")
@@ -45,6 +47,7 @@ func (c *Client) AddUploadCmd() {
 	c.AddCommand(uploadCmd)
 }
 
+// AddDownloadCmd enables download functionality
 func (c *Client) AddDownloadCmd() {
 	var opt DownloadOption
 	downloadCmd := &cobra.Command{
@@ -55,7 +58,7 @@ func (c *Client) AddDownloadCmd() {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := c.Download(args[0], args[1], opt)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("Error:", err)
 				os.Exit(1)
 			}
 			fmt.Println("Download succeeds.")

@@ -30,23 +30,32 @@ type Client struct {
 
 // NewClient creates a new client for futhur use
 func NewClient() (client *Client, err error) {
-	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	if err != nil {
-		return nil, xerrors.Errorf("fail to connect to IPFS: %s", err)
-	}
-
-	conn2, err := ipfscluster.CreateIPFSClusterConnector(0)
-	if err != nil {
-		return nil, xerrors.Errorf("fail to connect to cluster: %s", err)
-	}
-
-	client = &Client{
-		IPFSConnector:        conn,
-		IPFSClusterConnector: conn2,
-	}
+	client = &Client{}
 	client.initCmd()
 
 	return client, nil
+}
+
+// init ipfs connector for future usage
+func (c *Client) InitIPFSConnector() error {
+	conn, err := ipfsconnector.CreateIPFSConnector(0)
+	if err != nil {
+		return xerrors.Errorf("fail to connect to IPFS: %s", err)
+	}
+	c.IPFSConnector = conn
+
+	return nil
+}
+
+// init ipfs cluster connector for future usage
+func (c *Client) InitIPFSClusterConnector() error {
+	conn, err := ipfscluster.CreateIPFSClusterConnector(0)
+	if err != nil {
+		return xerrors.Errorf("fail to connect to IPFS Cluster: %s", err)
+	}
+	c.IPFSClusterConnector = conn
+
+	return nil
 }
 
 // AddAndPinAsFile adds a file to IPFS network and pin the file in cluster with a replication factor

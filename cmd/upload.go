@@ -11,6 +11,11 @@ import (
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
 func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, err error) {
+	err = c.InitIPFSConnector()
+	if err != nil {
+		return "", "", err
+	}
+
 	// add original file to ipfs
 	rootCID, err = c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
@@ -19,6 +24,11 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	if alpha < 1 {
 		// expect no entanglement
 		return rootCID, "", nil
+	}
+
+	err = c.InitIPFSClusterConnector()
+	if err != nil {
+		return rootCID, "", err
 	}
 
 	// get merkle tree from IPFS and flatten the tree
