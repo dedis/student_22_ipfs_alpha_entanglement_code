@@ -2,9 +2,6 @@ package entangler
 
 import (
 	"ipfs-alpha-entanglement-code/util"
-	"os"
-
-	"golang.org/x/xerrors"
 )
 
 // Position defines which position category the original block belongs
@@ -47,15 +44,12 @@ type Entangler struct {
 	P        int
 	ChunkNum int
 
-	ParityBlocks         [][]*EntangledBlock
-	OriginData           chan []byte
 	ChainStartData       [][]byte
 	MaxChainNumPerStrand int
 
-	cachedParities  [][]*EntangledBlock
-	rightMostBlocks []*EntangledBlock
-
-	finished bool
+	// cached data. reset for each entanglement
+	cachedParities     [][]*EntangledBlock
+	parityBlocksToWrap [][]*EntangledBlock
 }
 
 // NewEntangler takes the entanglement paramters and the original data slice and creates an entangler
@@ -72,7 +66,6 @@ func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 		util.ThrowError("invalid value. Expect alpha > 0")
 	}
 	entangler = &Entangler{Alpha: alpha, S: s, P: p}
-	entangler.finished = false
 	if s > p {
 		entangler.MaxChainNumPerStrand = s
 	} else {
@@ -82,57 +75,56 @@ func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
 	return entangler
 }
 
-// WriteEntanglementToFile writes the entanglement into files
-func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err error) {
-	if len(path) != e.Alpha {
-		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
-		return err
-	}
+// // WriteEntanglementToFile writes the entanglement into files
+// func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string) (err error) {
+// 	if len(path) != e.Alpha {
+// 		err = xerrors.Errorf("Invalid number of entanglement output paths. %d expected but %d provided", e.Alpha, len(path))
+// 		return err
+// 	}
 
-	if !e.finished {
-		err = xerrors.Errorf("No entanglement has been done")
-		return err
-	}
+// 	if !e.finished {
+// 		err = xerrors.Errorf("No entanglement has been done")
+// 		return err
+// 	}
 
-	for k := 0; k < e.Alpha; k++ {
-		// generate byte array of the current strand
-		entangledData := make([]byte, 0)
-		parities := e.ParityBlocks[k]
-		util.InfoPrint(util.Yellow("Strand %d: "), k)
-		for _, parity := range parities {
-			util.InfoPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
-			if chunkSize > 0 {
-				c := make([]byte, chunkSize)
-				copy(c, parity.Data)
-				entangledData = append(entangledData, c...)
-			} else {
-				entangledData = append(entangledData, parity.Data...)
-			}
+// 	for k := 0; k < e.Alpha; k++ {
+// 		// generate byte array of the current strand
+// 		entangledData := make([]byte, 0)
+// 		parities := e.ParityBlocks[k]
+// 		util.InfoPrint(util.Yellow("Strand %d: "), k)
+// 		for _, parity := range parities {
+// 			util.InfoPrint(util.Yellow("(%d, %d) "), parity.LeftBlockIndex, parity.RightBlockIndex)
+// 			if chunkSize > 0 {
+// 				c := make([]byte, chunkSize)
+// 				copy(c, parity.Data)
+// 				entangledData = append(entangledData, c...)
+// 			} else {
+// 				entangledData = append(entangledData, parity.Data...)
+// 			}
 
-		}
-		util.InfoPrint("\n")
+// 		}
+// 		util.InfoPrint("\n")
 
-		// write entanglement to file
-		err = os.WriteFile(path[k], entangledData, 0644)
-		if err != nil {
-			return err
-		}
-	}
+// 		// write entanglement to file
+// 		err = os.WriteFile(path[k], entangledData, 0644)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
 
-	return err
-}
+// 	return err
+// }
 
 // Entangle generate the entangelement for the given arrray of blocks
-func (e *Entangler) Entangle(data chan []byte) error {
-	e.OriginData = data
+func (e *Entangler) Entangle(dataChan chan []byte, parityChan chan EntangledBlock) error {
 	e.prepareEntangle()
 
 	// generate the lattice
 	util.LogPrint("Start generating lattice")
 	index := 0
-	for block := range e.OriginData {
+	for block := range dataChan {
 		index++
-		e.entangleSingleBlock(index, block)
+		e.entangleSingleBlock(index, block, parityChan)
 		if index <= e.MaxChainNumPerStrand {
 			e.ChainStartData[index-1] = block
 		}
@@ -142,19 +134,19 @@ func (e *Entangler) Entangle(data chan []byte) error {
 
 	// wraps the lattice
 	util.LogPrint("Start wrapping lattice")
-	e.wrapLattice()
+	e.wrapLattice(parityChan)
 	util.LogPrint("Finish wrapping lattice")
 
-	e.finished = true
+	close(parityChan)
 
 	return nil
 }
 
 // prepareEntangle prepares the data structure that will be used for entanglement
 func (e *Entangler) prepareEntangle() {
-	e.ParityBlocks = make([][]*EntangledBlock, e.Alpha)
+	e.parityBlocksToWrap = make([][]*EntangledBlock, e.Alpha)
 	for k := 0; k < e.Alpha; k++ {
-		e.ParityBlocks[k] = make([]*EntangledBlock, 0)
+		e.parityBlocksToWrap[k] = make([]*EntangledBlock, e.MaxChainNumPerStrand)
 	}
 
 	e.ChainStartData = make([][]byte, e.MaxChainNumPerStrand)
@@ -170,13 +162,11 @@ func (e *Entangler) prepareEntangle() {
 			e.cachedParities[k][i] = NewEntangledBlock(0, 0, make([]byte, 0), k)
 		}
 	}
-
-	e.rightMostBlocks = make([]*EntangledBlock, 0)
 }
 
 // entangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
 // It should be called in the correct order to ensure the correctness of cached blocks
-func (e *Entangler) entangleSingleBlock(index int, data []byte) {
+func (e *Entangler) entangleSingleBlock(index int, data []byte, parityChan chan EntangledBlock) {
 	cachePos := e.getChainIndexes(index)
 	rIndexes := e.getForwardNeighborIndexes(index)
 
@@ -188,11 +178,15 @@ func (e *Entangler) entangleSingleBlock(index int, data []byte) {
 		// generate, cache and store entangled block
 		nextBlock := NewEntangledBlock(index, rIndexes[k], parityData, k)
 		e.cachedParities[k][cachePos[k]] = nextBlock
-		e.ParityBlocks[k] = append(e.ParityBlocks[k], nextBlock)
+		if e.getChainStartIndexes(index)[k] != index {
+			parityChan <- *nextBlock
+		} else {
+			e.parityBlocksToWrap[k][index-1] = nextBlock
+		}
 	}
 }
 
-func (e *Entangler) wrapLattice() {
+func (e *Entangler) wrapLattice(parityChan chan EntangledBlock) {
 	for k, cacheParity := range e.cachedParities {
 		for _, parityNode := range cacheParity {
 			// Link the last parity block to the first data block of the chain
@@ -204,8 +198,9 @@ func (e *Entangler) wrapLattice() {
 				// the first block is not the rightmost block
 				rNext := NewEntangledBlock(index, rIndex,
 					XORChunkData(e.ChainStartData[index-1], parityNode.Data), k)
-				e.ParityBlocks[k][index-1] = rNext
+				e.parityBlocksToWrap[k][index-1] = rNext
 			}
+			parityChan <- *e.parityBlocksToWrap[k][index-1]
 		}
 	}
 }

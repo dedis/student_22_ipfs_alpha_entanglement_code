@@ -52,8 +52,8 @@ func (getter *SimpleGetter) GetParity(index int, strand int) (parity []byte, err
 	return
 }
 
-// util.Enable_LogPrint()
 // util.Enable_InfoPrint()
+// util.Enable_LogPrint()
 
 var alpha, s, p int = 3, 5, 5
 var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{}, missingParities []map[int]struct{}) func(*testing.T) {
@@ -72,16 +72,17 @@ var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{},
 			dataChan <- chunk
 		}
 		close(dataChan)
-		err := tangler.Entangle(dataChan)
+		parityChan := make(chan entangler.EntangledBlock, alpha*len(data))
+		err := tangler.Entangle(dataChan, parityChan)
 		if err != nil {
 			t.Fatal("Fail to do entanglement: ", err)
 		}
-		parity := make([][][]byte, alpha)
-		for k, strandBlocks := range tangler.ParityBlocks {
-			parity[k] = make([][]byte, len(strandBlocks))
-			for i, block := range strandBlocks {
-				parity[k][i] = append(parity[k][i], block.Data...)
-			}
+		parities := make([][][]byte, alpha)
+		for k := 0; k < alpha; k++ {
+			parities[k] = make([][]byte, len(data))
+		}
+		for parity := range parityChan {
+			parities[parity.Strand][parity.LeftBlockIndex-1] = parity.Data
 		}
 
 		for len(missingParities) < alpha {
@@ -92,7 +93,7 @@ var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{},
 		getter := SimpleGetter{
 			Data:         data,
 			DataFilter:   missingIndexes,
-			Parity:       parity,
+			Parity:       parities,
 			ParityFilter: missingParities}
 		util.LogPrint(util.Green("Finish creating getter"))
 

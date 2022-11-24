@@ -43,20 +43,39 @@ func Test_Entanglement(t *testing.T) {
 			for k := 0; k < alpha; k++ {
 				outputPaths[k] = fmt.Sprintf("data/entangler/my_%s_entanglement_%d", input, k)
 			}
-			err = tangler.Entangle(dataChan)
-			if err != nil {
-				t.Fail()
-				return
-			}
-			err = tangler.WriteEntanglementToFile(0, outputPaths)
+
+			parityChan := make(chan entangler.EntangledBlock, alpha*len(data))
+			err = tangler.Entangle(dataChan, parityChan)
 			if err != nil {
 				t.Fail()
 				return
 			}
 
+			parities := make([][][]byte, alpha)
 			for k := 0; k < alpha; k++ {
-				filename := fmt.Sprintf("%s_entanglement_%d", input, k)
-				expectedResult, err := os.ReadFile(filepath.Join("data/entangler", filename))
+				parities[k] = make([][]byte, len(data))
+			}
+			for parity := range parityChan {
+				parities[parity.Strand][parity.LeftBlockIndex-1] = parity.Data
+			}
+
+			for k := 0; k < alpha; k++ {
+				// generate byte array of the current strand
+				entangledData := make([]byte, 0)
+				for _, parityData := range parities[k] {
+					entangledData = append(entangledData, parityData...)
+				}
+
+				// write entanglement to file
+				err = os.WriteFile(outputPaths[k], entangledData, 0644)
+				if err != nil {
+					t.Fail()
+					return
+				}
+			}
+
+			for k := 0; k < alpha; k++ {
+				expectedResult, err := os.ReadFile(outputPaths[k])
 				if err != nil {
 					t.Fail()
 					return
