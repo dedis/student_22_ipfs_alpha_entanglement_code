@@ -28,7 +28,6 @@ type Lattice struct {
 
 // NewLattice creates a new lattice for block downloading and recovering
 func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter) (lattice *Lattice) {
-	var once sync.Once
 	var tangler = *NewEntangler(alpha, s, p)
 	tangler.ChunkNum = blockNum
 	lattice = &Lattice{
@@ -36,7 +35,6 @@ func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter) 
 		DataBlocks:   make([]*Block, 0),
 		ParityBlocks: make([][]*Block, alpha),
 		Getter:       blockGetter,
-		Once:         once,
 	}
 
 	return

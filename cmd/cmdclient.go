@@ -60,7 +60,6 @@ func (c *Client) InitIPFSClusterConnector() error {
 
 // AddAndPinAsFile adds a file to IPFS network and pin the file in cluster with a replication factor
 // replicate = 0 means use default config in the cluster
-// TODO: add replicate config in pinning
 func (c *Client) AddAndPinAsFile(data []byte, replicate int) (cid string, err error) {
 	// write the data to a temp file
 	tempfile, err := os.CreateTemp("", "IPFS-file-*")
@@ -68,7 +67,10 @@ func (c *Client) AddAndPinAsFile(data []byte, replicate int) (cid string, err er
 		return "", err
 	}
 	defer os.Remove(tempfile.Name())
-	tempfile.Write(data)
+	_, err = tempfile.Write(data)
+	if err != nil {
+		return "", err
+	}
 
 	// upload file to IPFS network
 	cid, err = c.AddFile(tempfile.Name())
@@ -77,13 +79,12 @@ func (c *Client) AddAndPinAsFile(data []byte, replicate int) (cid string, err er
 	}
 
 	// pin file in cluster
-	err = c.AddPin(cid)
+	err = c.AddPin(cid, replicate)
 	return cid, err
 }
 
 // AddAndPinAsRaw adds raw data to IPFS network and pin it in cluster with a replication factor
 // replicate = 0 means use default config in the cluster
-// TODO: add replicate config in pinning
 func (c *Client) AddAndPinAsRaw(data []byte, replicate int) (cid string, err error) {
 	// upload raw bytes to IPFS network
 	cid, err = c.AddRawData(data)
@@ -92,7 +93,7 @@ func (c *Client) AddAndPinAsRaw(data []byte, replicate int) (cid string, err err
 	}
 
 	// pin data in cluster
-	err = c.AddPin(cid)
+	err = c.AddPin(cid, replicate)
 	return cid, err
 }
 

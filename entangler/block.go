@@ -45,14 +45,12 @@ type Block struct {
 // NewBlock creates a block in the lattice
 func NewBlock(index int, parityBlock bool) (block *Block) {
 	m := sync.RWMutex{}
-	var once sync.Once
 	block = &Block{
 		RWMutex:      &m,
 		Index:        index,
 		IsParity:     parityBlock,
 		Status:       NoData,
 		Repaired:     false,
-		once:         once,
 		waitingGroup: sync.NewCond(&m),
 	}
 

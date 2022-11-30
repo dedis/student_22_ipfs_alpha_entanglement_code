@@ -31,13 +31,7 @@ var blockgetterTest = func(filepath string) func(*testing.T) {
 			t.Fatal(err)
 		}
 
-		nodesNotSwapped := root.GetFlattenedTree(s, p, false)
 		nodesSwapped := root.GetFlattenedTree(s, p, true)
-
-		var dataCIDs []string
-		for _, node := range nodesNotSwapped {
-			dataCIDs = append(dataCIDs, node.CID)
-		}
 
 		// generate entanglement
 		data := make(chan []byte, len(nodesSwapped))

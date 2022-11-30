@@ -25,12 +25,13 @@ func Test_Cluster_Simple(t *testing.T) {
 
 	cid1 := "QmTy4FELeqWSZLdRehF5HdPeHUaA1uCU5YNf5A2zHxqiFn"
 	cid2 := "QmayFoFM47uNAxxZiibAYXBj2rMfivu2arwd9AhUCrXNDn"
-	err = ipfscluster.AddPin(cid1)
+	replicationFactor := 1
+	err = ipfscluster.AddPin(cid1, replicationFactor)
 	if err != nil {
 		t.Fatalf("fail to execute IPFS cluster peer pin %s: %s\n", cid1, err)
 	}
 	util.LogPrint(fmt.Sprintf("Pin new cid: %s", cid1))
-	err = ipfscluster.AddPin(cid2)
+	err = ipfscluster.AddPin(cid2, replicationFactor)
 	if err != nil {
 		t.Fatalf("fail to execute IPFS cluster peer pin %s: %s\n", cid2, err)
 	}
