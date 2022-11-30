@@ -23,8 +23,8 @@ func Test_Cluster_Simple(t *testing.T) {
 	}
 	util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
 
-	cid1 := "QmTy4FELeqWSZLdRehF5HdPeHUaA1uCU5YNf5A2zHxqiFn"
-	cid2 := "QmayFoFM47uNAxxZiibAYXBj2rMfivu2arwd9AhUCrXNDn"
+	cid1 := "QmQqzMTavQgT4f4T5v6PWBp7XNKtoPmC9jvn12WPT3gkSE"
+	cid2 := "bafkreidlgzgnujigow46cy6t6pru23hqcox5agypq7sala6fnvq4ggo4zu"
 	replicationFactor := 1
 	err = ipfscluster.AddPin(cid1, replicationFactor)
 	if err != nil {
