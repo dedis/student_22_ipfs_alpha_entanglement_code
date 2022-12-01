@@ -50,23 +50,26 @@ func (c *Client) AddUploadCmd() {
 // AddDownloadCmd enables download functionality
 func (c *Client) AddDownloadCmd() {
 	var opt DownloadOption
+	var path string
 	downloadCmd := &cobra.Command{
 		Use:   "download [cid] [path]",
 		Short: "Download a file from IPFS",
 		Long:  "Download a file from IPFS. Do recovery if data is missing",
-		Args:  cobra.MinimumNArgs(2),
+		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := c.Download(args[0], args[1], opt)
+			out, err := c.Download(args[0], path, opt)
 			if err != nil {
 				fmt.Println("Error:", err)
 				os.Exit(1)
 			}
-			fmt.Println("Download succeeds.")
+			fmt.Printf("Download succeeds to '%s'.\n", out)
 		},
 	}
+	downloadCmd.Flags().StringVarP(&path, "output", "o", "", "Provide output path to store the downloaded stuff")
 	downloadCmd.Flags().StringVarP(&opt.MetaCID, "metacid", "m", "", "Provide metafile cid for recovery")
 	downloadCmd.Flags().BoolVarP(&opt.UploadRecoverData, "upload-recovery", "u", true, "Allow upload recovered chunk back to IPFS network")
 	downloadCmd.Flags().IntSliceVar(&opt.DataFilter, "missing-data", []int{}, "Specify the missing data blocks for testing")
+	downloadCmd.Flags().IntSliceVar(&opt.ParityFilter, "missing-parity", []int{}, "Specify the missing parity blocks for testing")
 
 	c.AddCommand(downloadCmd)
 }

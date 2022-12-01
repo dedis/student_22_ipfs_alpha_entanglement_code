@@ -99,7 +99,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 				return rootCID, "", xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
 			}
 		}
-		util.LogPrint("Finish generating entanglement %d", k)
+		util.LogPrint("Finish uploading and pinning entanglement %d", k)
 	}
 
 	// Store Metatdata?
