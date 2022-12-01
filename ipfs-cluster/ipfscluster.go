@@ -20,6 +20,7 @@ func CreateIPFSClusterConnector(port int) (*IPFSClusterConnector, error) {
 	return &IPFSClusterConnector{fmt.Sprintf("http://127.0.0.1:%d", port)}, nil
 }
 
+// PeerInfo list the info about the cluster peers
 func (c *IPFSClusterConnector) PeerInfo() (string, error) {
 	/* Return the connected peer info
 	For the moment, only returns the name of the connected peer */
@@ -37,6 +38,7 @@ func (c *IPFSClusterConnector) PeerInfo() (string, error) {
 	return info["peername"].(string), nil
 }
 
+// PeerLs list the number of peers that are inside the cluster
 func (c *IPFSClusterConnector) PeerLs() (int, error) {
 	/* List all peers inside the IPFS cluster
 	For the moment, only returns the number of peers */
@@ -58,6 +60,8 @@ func (c *IPFSClusterConnector) PeerLs() (int, error) {
 	return len(peersInfo), nil
 }
 
+// PinStatus check the status of the specified cid, if the CID is not given, it will
+// show all CIDs that are inside the ipfs cluster
 func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 	/* Check the pin status of all CIDs or a specific CID
 	For the moment, only checks the number of pin peers */
@@ -98,9 +102,13 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 	return pinStatus, err
 }
 
-func (c *IPFSClusterConnector) AddPin(cid string) error {
+// AddPin add the specified CID to the ipfs cluster, with the specified replication factor,
+// the default behavior is recursive, which means pinning all content that is beneath the CID
+func (c *IPFSClusterConnector) AddPin(cid string, replicationFactor int) error {
 	/* Add a new CID to the cluster,  it uses the default replication
 	factor that is specified in the CLUSTER configuration file */
-	_, err := http.PostForm(c.url+"/pins/ipfs/"+cid, nil)
+	postURL := fmt.Sprintf("%s/pins/ipfs/%s?mode=recursive&name=&replication-max=%d&replication-min=%d&shard-size=0&user-allocations=",
+		c.url, cid, replicationFactor, replicationFactor)
+	_, err := http.PostForm(postURL, nil)
 	return err
 }

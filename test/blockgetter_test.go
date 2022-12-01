@@ -2,23 +2,25 @@ package test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
+	"log"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 )
 
-var blockgetterTest = func() func(*testing.T) {
+var blockgetterTest = func(filepath string) func(*testing.T) {
 	return func(t *testing.T) {
 		alpha, s, p := 3, 5, 5
-		path := "data/largeFile.txt"
 		c, err := ipfsconnector.CreateIPFSConnector(0)
 		if err != nil {
 			t.Fatal(err)
 		}
 		// add original file to ipfs
-		cid, err := c.AddFile(path)
+		cid, err := c.AddFile(filepath)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -29,13 +31,7 @@ var blockgetterTest = func() func(*testing.T) {
 			t.Fatal(err)
 		}
 
-		nodesNotSwapped := root.GetFlattenedTree(s, p, false)
 		nodesSwapped := root.GetFlattenedTree(s, p, true)
-
-		var dataCIDs []string
-		for _, node := range nodesNotSwapped {
-			dataCIDs = append(dataCIDs, node.CID)
-		}
 
 		// generate entanglement
 		data := make(chan []byte, len(nodesSwapped))
@@ -55,7 +51,7 @@ var blockgetterTest = func() func(*testing.T) {
 
 		outputPaths := make([]string, alpha)
 		for k := 0; k < alpha; k++ {
-			outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(path, ".")[0], k)
+			outputPaths[k] = fmt.Sprintf("%s_entanglement_%d", strings.Split(filepath, ".")[0], k)
 			defer os.Remove(outputPaths[k])
 		}
 		parityChan := make(chan entangler.EntangledBlock, alpha*len(nodesSwapped))
@@ -100,13 +96,12 @@ var blockgetterTest = func() func(*testing.T) {
 
 		// Verify that we get the expected results
 		for i := 0; i < root.TreeSize; i++ {
-			actualData, err := getter.GetData(i + 1)
+			actualData, err := getter.GetData(i)
 			if err != nil {
 				t.Fatal(err)
 			}
 			expectedData, _ := nodesSwapped[i].Data()
-			// require.Equal(t, expectedData, actualData)
-			fmt.Println(len(actualData), len(expectedData))
+			require.Equal(t, expectedData, actualData)
 		}
 
 		for i := 0; i < alpha; i++ {
@@ -116,13 +111,27 @@ var blockgetterTest = func() func(*testing.T) {
 					t.Fatal(err)
 				}
 				expectedData, _ := parityLeafNodes[i][j].Data()
-				// require.Equal(t, expectedData, actualData)
-				fmt.Println(len(actualData), len(expectedData))
+				require.Equal(t, expectedData, actualData)
 			}
 		}
 	}
 }
 
 func Test_Blockgetter_Basic(t *testing.T) {
-	t.Run("basic", blockgetterTest())
+	files, err := os.ReadDir("data")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var fileNames []string
+	for _, file := range files {
+		if !file.IsDir() {
+			fileNames = append(fileNames, file.Name())
+		}
+	}
+	sort.Strings(fileNames)
+
+	for _, fileName := range fileNames {
+		t.Run("basic_"+fileName, blockgetterTest("data/"+fileName))
+	}
 }

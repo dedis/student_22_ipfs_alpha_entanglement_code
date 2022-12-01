@@ -50,13 +50,12 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	parityChan := make(chan entangler.EntangledBlock, alpha*blockNum)
 
 	tangler := entangler.NewEntangler(alpha, s, p)
-	// go func() {
-	// 	err = tangler.Entangle(dataChan)
-	// 	if err != nil {
-	// 		return rootCID, "", xerrors.Errorf("could not generate entanglement: %s", err)
-	// 	}
-	// }()
-	go tangler.Entangle(dataChan, parityChan)
+	go func() {
+		err = tangler.Entangle(dataChan, parityChan)
+		if err != nil {
+			panic(xerrors.Errorf("could not generate entanglement: %s", err))
+		}
+	}()
 
 	// send data to entangler
 	go func() {
@@ -84,7 +83,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		go func(block entangler.EntangledBlock) {
 			defer waitGroup.Done()
 
-			blockCID, err := c.AddAndPinAsRaw(block.Data, 0)
+			blockCID, err := c.AddAndPinAsRaw(block.Data, 1)
 			if err == nil {
 				parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
 			}
