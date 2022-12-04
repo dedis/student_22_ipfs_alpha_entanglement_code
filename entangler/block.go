@@ -71,6 +71,13 @@ func (b *Block) GetData() (data []byte, err error) {
 	return
 }
 
+func (b *Block) IsAvailable() bool {
+	b.RLock()
+	defer b.RUnlock()
+
+	return b.Status == DataAvailable
+}
+
 func (b *Block) IsRepaired() bool {
 	b.RLock()
 	defer b.RUnlock()
@@ -133,7 +140,7 @@ func (b *Block) SetData(data []byte, recover bool) {
 func (b *Block) Recover(v []byte, w []byte) (err error) {
 	if len(v) == 0 || len(w) == 0 {
 		err = xerrors.Errorf("invalid recover input!")
-		return
+		return err
 	}
 	data := XORChunkData(v, w)
 
@@ -146,7 +153,7 @@ func (b *Block) Recover(v []byte, w []byte) (err error) {
 		b.Status = DataAvailable
 	}
 
-	return
+	return nil
 }
 
 // GetRecoverPairs returns a list of pair that can be used to do recovery

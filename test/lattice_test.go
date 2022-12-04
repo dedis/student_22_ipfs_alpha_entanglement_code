@@ -97,7 +97,7 @@ var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{},
 			ParityFilter: missingParities}
 		util.LogPrint(util.Green("Finish creating getter"))
 
-		lattice := entangler.NewLattice(alpha, s, p, chunkNum, &getter)
+		lattice := entangler.NewLattice(alpha, s, p, chunkNum, &getter, 1)
 		lattice.Init()
 		util.LogPrint(util.Green("Finish generating lattice"))
 
@@ -145,6 +145,7 @@ func Test_Lattice_Single_Data_Lost(t *testing.T) {
 }
 
 func Test_Lattice_Multiple_Data_Lost(t *testing.T) {
+	util.Enable_LogPrint()
 	missedN := func(chunkNum int, chunkSize int, missNum int) func(*testing.T) {
 		indexes := make([]int, chunkNum)
 		for i := 0; i < chunkNum; i++ {
@@ -159,8 +160,8 @@ func Test_Lattice_Multiple_Data_Lost(t *testing.T) {
 		}
 		return getTest(chunkNum, chunkSize, missedIndexes, []map[int]struct{}{})
 	}
-	t.Run("2-Miss", missedN(5, 32, 2))
-	t.Run("3-Miss", missedN(5, 32, 3))
+	t.Run("2-Miss", missedN(25, 32, 2))
+	t.Run("3-Miss", missedN(25, 32, 3))
 }
 
 func Test_Lattice_Single_Two_Step_Recovery(t *testing.T) {

@@ -14,20 +14,20 @@ type BlockGetter interface {
 }
 
 type Lattice struct {
-	// Alpha     int // TODO: now only support alpha = 3 ???
-	// S         int
-	// P         int
-	// BlockSize int
 	Entangler
 	DataBlocks   []*Block
 	ParityBlocks [][]*Block
 
 	Getter BlockGetter
 	Once   sync.Once
+
+	SwitchDepth  uint
+	UseParrallel bool
+	*sync.RWMutex
 }
 
 // NewLattice creates a new lattice for block downloading and recovering
-func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter) (lattice *Lattice) {
+func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter, switchDepth uint) (lattice *Lattice) {
 	var tangler = *NewEntangler(alpha, s, p)
 	tangler.ChunkNum = blockNum
 	lattice = &Lattice{
@@ -35,6 +35,9 @@ func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter) 
 		DataBlocks:   make([]*Block, 0),
 		ParityBlocks: make([][]*Block, alpha),
 		Getter:       blockGetter,
+		SwitchDepth:  switchDepth,
+		UseParrallel: false,
+		RWMutex:      &sync.RWMutex{},
 	}
 
 	return
@@ -107,7 +110,7 @@ func (l *Lattice) GetAllData() (data [][]byte, err error) {
 // GetChunk returns a data chunk in the indexed block
 func (l *Lattice) GetChunk(index int) (data []byte, repaired bool, err error) {
 	block := l.getBlock(index)
-	data, err = l.getDataFromBlock(block)
+	data, err = l.getDataFromBlock(block, l.SwitchDepth)
 	repaired = block.IsRepaired()
 
 	return data, repaired, err
@@ -119,8 +122,83 @@ func (l *Lattice) getBlock(index int) (block *Block) {
 	return block
 }
 
-// getDataFromBlock recovers a block with missing chunk using the lattice
-func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
+// getDataFromBlock recovers a block with missing chunk using the lattice (hybrid, auto switch)
+func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error) {
+	if allowDepth > 0 {
+		l.RLock()
+		useParallel := l.UseParrallel
+		l.RUnlock()
+
+		if !useParallel {
+			data, err := l.getDataFromBlockSequential(block, allowDepth)
+			if err == nil {
+				return data, err
+			}
+			l.Lock()
+			useParallel = true
+			l.Unlock()
+		}
+	}
+
+	return l.getDataFromBlockParallel(block)
+}
+
+// getDataFromBlockSequential recovers a block with missing chunk using the lattice (single thread)
+func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (data []byte, err error) {
+	recursiveRecover := func(block *Block, allowDepth uint) {
+		// if already has data
+		if block.IsAvailable() {
+			return
+		}
+
+		// download data
+		downloadErr := l.downloadBlock(block)
+		if downloadErr == nil {
+			util.LogPrint("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
+			return
+		}
+		util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
+
+		// repair data
+		if allowDepth == 0 {
+			util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+			return
+		}
+		pairs := block.GetRecoverPairs()
+		if len(pairs) == 0 {
+			util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+			return
+		}
+		for _, mypair := range pairs {
+			leftChunk, RepairErr := l.getDataFromBlock(mypair.Left, allowDepth-1)
+			if RepairErr != nil {
+				continue
+			}
+
+			rightChunk, RepairErr := l.getDataFromBlock(mypair.Right, allowDepth-1)
+			if RepairErr != nil {
+				continue
+			}
+
+			if block.Recover(leftChunk, rightChunk) == nil {
+				util.LogPrint(util.Green("{Sequential} Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
+				return
+			}
+		}
+		util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+	}
+	recursiveRecover(block, allowDepth)
+
+	data, err = block.GetData()
+	if err != nil {
+		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.", block.Index, block.IsParity, block.Strand, err)
+	}
+
+	return data, err
+}
+
+// getDataFromBlockParallel recovers a block with missing chunk using the lattice (multiple threads)
+func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error) {
 	myCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -146,21 +224,21 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 			err := l.downloadBlock(block)
 			if err == nil {
 				repairSuccess = true
-				util.LogPrint("Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
+				util.LogPrint("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
 				return
 			}
-			util.LogPrint(util.Red("Index: %d, Parity: %t, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
+			util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
 
 			// repair data
 			pairs := block.GetRecoverPairs()
 			if len(pairs) == 0 {
-				util.LogPrint(util.Red("Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+				util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
 				return
 			}
 			finish := make(chan bool)
 			counter := 0
 			for _, mypair := range pairs {
-				util.InfoPrint(util.Yellow("Left - Index: %d, Parity: %t, Strand: %d\nRight - Index: %d, Parity: %t, Strand: %d\n\n"),
+				util.InfoPrint(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\nRight - Index: %d, Parity: %t, Strand: %d\n\n"),
 					mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
 					mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
 				go func(pair *BlockPair) {
@@ -199,12 +277,12 @@ func (l *Lattice) getDataFromBlock(block *Block) (data []byte, err error) {
 				success := <-finish
 				if success {
 					repairSuccess = true
-					util.LogPrint(util.Green("Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
+					util.LogPrint(util.Green("{Parallel} Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
 					return
 				}
 				counter++
 				if counter >= len(pairs) {
-					util.LogPrint(util.Red("Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+					util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
 					return
 				}
 			}

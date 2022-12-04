@@ -61,7 +61,7 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 	}
 
 	// create lattice
-	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter)
+	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 2)
 	lattice.Init()
 	util.LogPrint("Finish generating lattice")
 
