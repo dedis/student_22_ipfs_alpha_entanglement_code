@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 var Default_Port int = 9094
@@ -96,14 +98,16 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 				pinCount++
 			}
 		}
-		pinStatus += fmt.Sprintf("\n%s pinned by %d peers.", status["cid"].(string), pinCount)
+		pinStatus += fmt.Sprintf("%s pinned by %d peers.\n", status["cid"].(string), pinCount)
 	}
+	pinStatus = fmt.Sprintf("\nTotal number of pins: %d\n", len(pinInfo)) + pinStatus
 
 	return pinStatus, err
 }
 
 // AddPin add the specified CID to the ipfs cluster, with the specified replication factor,
 // the default behavior is recursive, which means pinning all content that is beneath the CID
+// "mode" can be "direct" or "recursive"
 func (c *IPFSClusterConnector) AddPin(cid string, replicationFactor int) error {
 	/* Add a new CID to the cluster,  it uses the default replication
 	factor that is specified in the CLUSTER configuration file */
@@ -111,4 +115,62 @@ func (c *IPFSClusterConnector) AddPin(cid string, replicationFactor int) error {
 		c.url, cid, replicationFactor, replicationFactor)
 	_, err := http.PostForm(postURL, nil)
 	return err
+}
+
+// PeerLoad checks the load balance of the cluster, namely how many blocks is stored on each
+// cluster peer
+func (c *IPFSClusterConnector) PeerLoad() (string, error) {
+	min := func(a, b int) int {
+		if a < b {
+			return a
+		}
+		return b
+	}
+
+	max := func(a, b int) int {
+		if a > b {
+			return a
+		}
+		return b
+	}
+
+	statusURL := c.url + "/pins"
+	resp, err := http.Get(statusURL)
+	if err != nil {
+		return "", err
+	}
+
+	var totBlocks int
+	peerInfo := make(map[string]int)
+	decoder := json.NewDecoder(resp.Body)
+	for decoder.More() {
+		var status map[string]interface{}
+		if err = decoder.Decode(&status); err != nil {
+			panic(err)
+		}
+		var statusMap = status["peer_map"].(map[string]interface{})
+		for key := range statusMap {
+			pinStatus := statusMap[key].(map[string]interface{})["status"].(string)
+			if pinStatus == "pinned" {
+				peerInfo[key]++
+				totBlocks++
+			}
+		}
+	}
+
+	var peerLoad string
+	minBlocks := totBlocks
+	maxBlocks := 0
+	var blocks []string
+	for key := range peerInfo {
+		minBlocks = min(minBlocks, peerInfo[key])
+		maxBlocks = max(maxBlocks, peerInfo[key])
+		blocks = append(blocks, strconv.Itoa(peerInfo[key]))
+	}
+
+	peerLoad += fmt.Sprintf("\nTotal blocks in the cluster: %d\n", totBlocks)
+	peerLoad += fmt.Sprintf("Min blocks: %d, Max blocks: %d\n", minBlocks, maxBlocks)
+	peerLoad += fmt.Sprintf("Detailed blocks info: %s", strings.Join(blocks, ", "))
+
+	return peerLoad, nil
 }

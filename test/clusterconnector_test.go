@@ -5,10 +5,9 @@ import (
 	ipfscluster "ipfs-alpha-entanglement-code/ipfs-cluster"
 	"ipfs-alpha-entanglement-code/util"
 	"testing"
-	"time"
 )
 
-func Test_Cluster_Simple(t *testing.T) {
+func Test_Cluster_Simple_Info(t *testing.T) {
 	util.Enable_LogPrint()
 	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
 	peerName, err := ipfscluster.PeerInfo()
@@ -22,11 +21,15 @@ func Test_Cluster_Simple(t *testing.T) {
 		t.Fatal("fail to execute IPFS cluster peer ls: ", err)
 	}
 	util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
+}
 
+func Test_Cluster_Pin(t *testing.T) {
+	util.Enable_LogPrint()
+	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
 	cid1 := "QmQqzMTavQgT4f4T5v6PWBp7XNKtoPmC9jvn12WPT3gkSE"
 	cid2 := "bafkreidlgzgnujigow46cy6t6pru23hqcox5agypq7sala6fnvq4ggo4zu"
 	replicationFactor := 1
-	err = ipfscluster.AddPin(cid1, replicationFactor)
+	err := ipfscluster.AddPin(cid1, replicationFactor)
 	if err != nil {
 		t.Fatalf("fail to execute IPFS cluster peer pin %s: %s\n", cid1, err)
 	}
@@ -36,12 +39,24 @@ func Test_Cluster_Simple(t *testing.T) {
 		t.Fatalf("fail to execute IPFS cluster peer pin %s: %s\n", cid2, err)
 	}
 	util.LogPrint(fmt.Sprintf("Pin new cid: %s", cid2))
+}
 
-	time.Sleep(time.Second)
-
+func Test_Cluster_Pin_Info(t *testing.T) {
+	util.Enable_LogPrint()
+	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
 	pinStatus, err := ipfscluster.PinStatus("")
 	if err != nil {
 		t.Fatal("fail to execute IPFS cluster peer pin status: ", err)
 	}
 	util.LogPrint(fmt.Sprintf("Pinned files: %s", pinStatus))
+}
+
+func Test_Cluster_Load_Check(t *testing.T) {
+	util.Enable_LogPrint()
+	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
+	peerLoad, err := ipfscluster.PeerLoad()
+	if err != nil {
+		t.Fatal("fail to execute IPFS cluster peer load: ", err)
+	}
+	util.LogPrint(fmt.Sprintf("Load on peers: %s", peerLoad))
 }

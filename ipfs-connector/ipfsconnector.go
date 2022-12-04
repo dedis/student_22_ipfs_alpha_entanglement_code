@@ -1,6 +1,7 @@
 package ipfsconnector
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -44,7 +45,9 @@ func (c *IPFSConnector) GetFile(cid string, outputPath string) error {
 
 // AddRawData addes raw block data to IPFS network
 func (c *IPFSConnector) AddRawData(chunk []byte) (cid string, err error) {
-	return c.shell.BlockPut(chunk, "v0", "sha2-256", -1)
+	// return c.shell.BlockPut(chunk, "v0", "sha2-256", -1)
+	// Upload as a file, instead of a raw block
+	return c.shell.Add(bytes.NewReader(chunk))
 }
 
 // GetRawBlock gets raw block data from IPFS network
