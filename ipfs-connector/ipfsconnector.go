@@ -66,9 +66,7 @@ func (c *IPFSConnector) GetFileToMem(cid string) ([]byte, error) {
 
 // AddRawData addes raw block data to IPFS network
 func (c *IPFSConnector) AddRawData(chunk []byte) (cid string, err error) {
-	// return c.shell.BlockPut(chunk, "v0", "sha2-256", -1)
-	// Upload as a file, instead of a raw block
-	return c.shell.Add(bytes.NewReader(chunk))
+	return c.shell.BlockPut(chunk, "v0", "sha2-256", -1)
 }
 
 // GetRawBlock gets raw block data from IPFS network
