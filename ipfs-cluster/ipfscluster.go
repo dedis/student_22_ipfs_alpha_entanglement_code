@@ -11,7 +11,10 @@ import (
 var Default_Port int = 9094
 
 type IPFSClusterConnector struct {
-	url string
+	url        string
+	selfID     string
+	peerIDs    []string
+	currentIdx int
 }
 
 // CreateIPFSClusterConnector is the constructor of IPFSClusterConnector
@@ -19,7 +22,16 @@ func CreateIPFSClusterConnector(port int) (*IPFSClusterConnector, error) {
 	if port == 0 {
 		port = Default_Port
 	}
-	return &IPFSClusterConnector{fmt.Sprintf("http://127.0.0.1:%d", port)}, nil
+	conn := IPFSClusterConnector{url: fmt.Sprintf("http://127.0.0.1:%d", port)}
+	_, err := conn.PeerInfo()
+	if err != nil {
+		return nil, err
+	}
+	_, err = conn.PeerLs()
+	if err != nil {
+		return nil, err
+	}
+	return &conn, nil
 }
 
 // PeerInfo list the info about the cluster peers
@@ -37,6 +49,7 @@ func (c *IPFSClusterConnector) PeerInfo() (string, error) {
 		panic(err)
 	}
 
+	c.selfID = info["id"].(string)
 	return info["peername"].(string), nil
 }
 
@@ -57,6 +70,9 @@ func (c *IPFSClusterConnector) PeerLs() (int, error) {
 			panic(err)
 		}
 		peersInfo = append(peersInfo, info)
+		if info["id"].(string) != c.selfID {
+			c.peerIDs = append(c.peerIDs, info["id"].(string))
+		}
 	}
 
 	return len(peersInfo), nil
@@ -111,8 +127,10 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 func (c *IPFSClusterConnector) AddPin(cid string, replicationFactor int) error {
 	/* Add a new CID to the cluster,  it uses the default replication
 	factor that is specified in the CLUSTER configuration file */
-	postURL := fmt.Sprintf("%s/pins/ipfs/%s?mode=recursive&name=&replication-max=%d&replication-min=%d&shard-size=0&user-allocations=",
-		c.url, cid, replicationFactor, replicationFactor)
+	peerID := c.peerIDs[c.currentIdx]
+	c.currentIdx = (c.currentIdx + 1) % len(c.peerIDs)
+	postURL := fmt.Sprintf("%s/pins/ipfs/%s?mode=recursive&name=&replication-max=%d&replication-min=%d&shard-size=0&user-allocations=%s",
+		c.url, cid, replicationFactor, replicationFactor, peerID)
 	_, err := http.PostForm(postURL, nil)
 	return err
 }
