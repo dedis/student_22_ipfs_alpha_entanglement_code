@@ -21,9 +21,7 @@ type Lattice struct {
 	Getter BlockGetter
 	Once   sync.Once
 
-	SwitchDepth  uint
-	UseParrallel bool
-	*sync.RWMutex
+	SwitchDepth uint
 }
 
 // NewLattice creates a new lattice for block downloading and recovering
@@ -36,8 +34,6 @@ func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter, 
 		ParityBlocks: make([][]*Block, alpha),
 		Getter:       blockGetter,
 		SwitchDepth:  switchDepth,
-		UseParrallel: false,
-		RWMutex:      &sync.RWMutex{},
 	}
 
 	return
@@ -125,19 +121,7 @@ func (l *Lattice) getBlock(index int) (block *Block) {
 // getDataFromBlock recovers a block with missing chunk using the lattice (hybrid, auto switch)
 func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error) {
 	if allowDepth > 0 {
-		l.RLock()
-		useParallel := l.UseParrallel
-		l.RUnlock()
-
-		if !useParallel {
-			data, err := l.getDataFromBlockSequential(block, allowDepth)
-			if err == nil {
-				return data, err
-			}
-			l.Lock()
-			useParallel = true
-			l.Unlock()
-		}
+		return l.getDataFromBlockSequential(block, allowDepth)
 	}
 
 	return l.getDataFromBlockParallel(block)
