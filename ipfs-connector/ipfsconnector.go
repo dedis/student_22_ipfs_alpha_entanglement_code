@@ -1,7 +1,9 @@
 package ipfsconnector
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"ipfs-alpha-entanglement-code/entangler"
@@ -37,9 +39,29 @@ func (c *IPFSConnector) AddFile(path string) (cid string, err error) {
 	return c.shell.Add(file)
 }
 
+// AddFileFromMem takes the bytes array and upload it to IPFS network as file
+func (c *IPFSConnector) AddFileFromMem(data []byte) (cid string, err error) {
+	return c.shell.Add(bytes.NewReader(data))
+}
+
 // GetFile takes the file CID and reads it from IPFS network
 func (c *IPFSConnector) GetFile(cid string, outputPath string) error {
 	return c.shell.Get(cid, outputPath)
+}
+
+// GetFileToMem takes the file CID and reads it from IPFS network to memory
+func (c *IPFSConnector) GetFileToMem(cid string) ([]byte, error) {
+	data, err := c.shell.Cat(cid)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 // AddRawData addes raw block data to IPFS network

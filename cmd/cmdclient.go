@@ -61,19 +61,8 @@ func (c *Client) InitIPFSClusterConnector() error {
 // AddAndPinAsFile adds a file to IPFS network and pin the file in cluster with a replication factor
 // replicate = 0 means use default config in the cluster
 func (c *Client) AddAndPinAsFile(data []byte, replicate int) (cid string, err error) {
-	// write the data to a temp file
-	tempfile, err := os.CreateTemp("", "IPFS-file-*")
-	if err != nil {
-		return "", err
-	}
-	defer os.Remove(tempfile.Name())
-	_, err = tempfile.Write(data)
-	if err != nil {
-		return "", err
-	}
-
 	// upload file to IPFS network
-	cid, err = c.AddFile(tempfile.Name())
+	cid, err = c.AddFileFromMem(data)
 	if err != nil {
 		return "", err
 	}
