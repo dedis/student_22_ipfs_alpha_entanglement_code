@@ -67,7 +67,7 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 		err := xerrors.Errorf("no parity exists")
 		return nil, err
 	} else {
-		data, err := getter.GetRawBlock(cid)
+		data, err := getter.GetFileToMem(cid)
 		return data, err
 	}
 }

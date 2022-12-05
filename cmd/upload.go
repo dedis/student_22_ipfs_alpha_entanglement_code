@@ -83,7 +83,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		go func(block entangler.EntangledBlock) {
 			defer waitGroup.Done()
 
-			blockCID, err := c.AddAndPinAsRaw(block.Data, 1)
+			blockCID, err := c.AddAndPinAsFile(block.Data, 1)
 			if err == nil {
 				parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
 			}
