@@ -154,6 +154,10 @@ func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (dat
 		// download data
 		downloadErr := l.downloadBlock(block)
 		if downloadErr == nil {
+			if block.IsParity {
+				util.LogPrint(util.Magenta("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
+				return
+			}
 			util.LogPrint("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
 			return
 		}
@@ -224,6 +228,10 @@ func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error
 			err := l.downloadBlock(block)
 			if err == nil {
 				repairSuccess = true
+				if block.IsParity {
+					util.LogPrint(util.Magenta("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
+					return
+				}
 				util.LogPrint("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
 				return
 			}
