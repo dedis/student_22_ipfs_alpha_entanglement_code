@@ -9,18 +9,21 @@ import (
 
 func Test_Cluster_Simple_Info(t *testing.T) {
 	util.Enable_LogPrint()
-	ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094)
-	peerName, err := ipfscluster.PeerInfo()
-	if err != nil {
-		t.Fatal("fail to execute IPFS cluster peer info: ", err)
-	}
-	util.LogPrint(fmt.Sprintf("Connected IPFS Cluster peer: %s", peerName))
+	for i := 0; i < 10; i++ {
+		/* Connect to different peers */
+		ipfscluster, _ := ipfscluster.CreateIPFSClusterConnector(9094 + i*100)
+		peerName, err := ipfscluster.PeerInfo()
+		if err != nil {
+			t.Fatal("fail to execute IPFS cluster peer info: ", err)
+		}
+		util.LogPrint(fmt.Sprintf("Connected IPFS Cluster peer: %s", peerName))
 
-	nbPeer, err := ipfscluster.PeerLs()
-	if err != nil {
-		t.Fatal("fail to execute IPFS cluster peer ls: ", err)
+		nbPeer, err := ipfscluster.PeerLs()
+		if err != nil {
+			t.Fatal("fail to execute IPFS cluster peer ls: ", err)
+		}
+		util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
 	}
-	util.LogPrint(fmt.Sprintf("Number of IPFS Cluster peers: %d", nbPeer))
 }
 
 func Test_Cluster_Pin(t *testing.T) {

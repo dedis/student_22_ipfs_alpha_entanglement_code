@@ -86,7 +86,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs1/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9194:9094"
     volumes:
       - ./compose/cluster1:/data/ipfs-cluster
 
@@ -111,7 +114,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs2/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9294:9094"
     volumes:
       - ./compose/cluster2:/data/ipfs-cluster
 
@@ -134,7 +140,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs3/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9394:9094"
     volumes:
       - ./compose/cluster3:/data/ipfs-cluster
 
@@ -155,7 +164,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs4/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9494:9094"
     volumes:
       - ./compose/cluster4:/data/ipfs-cluster
 
@@ -176,7 +188,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs5/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9594:9094"
     volumes:
       - ./compose/cluster5:/data/ipfs-cluster
 
@@ -197,7 +212,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs6/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9694:9094"
     volumes:
       - ./compose/cluster6:/data/ipfs-cluster
 
@@ -218,7 +236,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs7/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9794:9094"
     volumes:
       - ./compose/cluster7:/data/ipfs-cluster
 
@@ -239,7 +260,10 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs8/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9894:9094"
     volumes:
       - ./compose/cluster8:/data/ipfs-cluster
 
@@ -260,216 +284,219 @@ services:
       CLUSTER_SECRET: ${CLUSTER_SECRET}
       CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs9/tcp/5001
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+    ports:
+          - "127.0.0.1:9994:9094"
     volumes:
       - ./compose/cluster9:/data/ipfs-cluster
 
 
-  ipfs10:
-    container_name: ipfs10
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs10:/data/ipfs
+  # ipfs10:
+  #   container_name: ipfs10
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs10:/data/ipfs
 
-  cluster10:
-    container_name: cluster10
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs10
-    environment:
-      CLUSTER_PEERNAME: cluster10
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs10/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster10:/data/ipfs-cluster
-
-
-  ipfs11:
-    container_name: ipfs11
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs11:/data/ipfs
-
-  cluster11:
-    container_name: cluster11
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs11
-    environment:
-      CLUSTER_PEERNAME: cluster11
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs11/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster11:/data/ipfs-cluster
+  # cluster10:
+  #   container_name: cluster10
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs10
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster10
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs10/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster10:/data/ipfs-cluster
 
 
-  ipfs12:
-    container_name: ipfs12
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs12:/data/ipfs
+  # ipfs11:
+  #   container_name: ipfs11
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs11:/data/ipfs
 
-  cluster12:
-    container_name: cluster12
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs12
-    environment:
-      CLUSTER_PEERNAME: cluster12
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs12/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster12:/data/ipfs-cluster
-
-
-  ipfs13:
-    container_name: ipfs13
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs13:/data/ipfs
-
-  cluster13:
-    container_name: cluster13
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs13
-    environment:
-      CLUSTER_PEERNAME: cluster13
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs13/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster13:/data/ipfs-cluster
+  # cluster11:
+  #   container_name: cluster11
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs11
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster11
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs11/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster11:/data/ipfs-cluster
 
 
-  ipfs14:
-    container_name: ipfs14
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs14:/data/ipfs
+  # ipfs12:
+  #   container_name: ipfs12
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs12:/data/ipfs
 
-  cluster14:
-    container_name: cluster14
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs14
-    environment:
-      CLUSTER_PEERNAME: cluster14
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs14/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster14:/data/ipfs-cluster
-
-
-  ipfs15:
-    container_name: ipfs15
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs15:/data/ipfs
-
-  cluster15:
-    container_name: cluster15
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs15
-    environment:
-      CLUSTER_PEERNAME: cluster15
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs15/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster15:/data/ipfs-cluster
+  # cluster12:
+  #   container_name: cluster12
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs12
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster12
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs12/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster12:/data/ipfs-cluster
 
 
-  ipfs16:
-    container_name: ipfs16
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs16:/data/ipfs
+  # ipfs13:
+  #   container_name: ipfs13
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs13:/data/ipfs
 
-  cluster16:
-    container_name: cluster16
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs16
-    environment:
-      CLUSTER_PEERNAME: cluster16
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs16/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster16:/data/ipfs-cluster
-
-
-  ipfs17:
-    container_name: ipfs17
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs17:/data/ipfs
-
-  cluster17:
-    container_name: cluster17
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs17
-    environment:
-      CLUSTER_PEERNAME: cluster17
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs17/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster17:/data/ipfs-cluster
+  # cluster13:
+  #   container_name: cluster13
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs13
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster13
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs13/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster13:/data/ipfs-cluster
 
 
-  ipfs18:
-    container_name: ipfs18
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs18:/data/ipfs
+  # ipfs14:
+  #   container_name: ipfs14
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs14:/data/ipfs
 
-  cluster18:
-    container_name: cluster18
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs18
-    environment:
-      CLUSTER_PEERNAME: cluster18
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs18/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster18:/data/ipfs-cluster
+  # cluster14:
+  #   container_name: cluster14
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs14
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster14
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs14/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster14:/data/ipfs-cluster
 
 
-  ipfs19:
-    container_name: ipfs19
-    image: ipfs/go-ipfs:latest
-    volumes:
-      - ./compose/ipfs19:/data/ipfs
+  # ipfs15:
+  #   container_name: ipfs15
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs15:/data/ipfs
 
-  cluster19:
-    container_name: cluster19
-    image: ipfs/ipfs-cluster:latest
-    depends_on:
-      - ipfs19
-    environment:
-      CLUSTER_PEERNAME: cluster19
-      CLUSTER_SECRET: ${CLUSTER_SECRET}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs19/tcp/5001
-      CLUSTER_CRDT_TRUSTEDPEERS: '*'
-      CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
-    volumes:
-      - ./compose/cluster19:/data/ipfs-cluster
+  # cluster15:
+  #   container_name: cluster15
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs15
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster15
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs15/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster15:/data/ipfs-cluster
+
+
+  # ipfs16:
+  #   container_name: ipfs16
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs16:/data/ipfs
+
+  # cluster16:
+  #   container_name: cluster16
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs16
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster16
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs16/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster16:/data/ipfs-cluster
+
+
+  # ipfs17:
+  #   container_name: ipfs17
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs17:/data/ipfs
+
+  # cluster17:
+  #   container_name: cluster17
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs17
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster17
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs17/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster17:/data/ipfs-cluster
+
+
+  # ipfs18:
+  #   container_name: ipfs18
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs18:/data/ipfs
+
+  # cluster18:
+  #   container_name: cluster18
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs18
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster18
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs18/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster18:/data/ipfs-cluster
+
+
+  # ipfs19:
+  #   container_name: ipfs19
+  #   image: ipfs/go-ipfs:latest
+  #   volumes:
+  #     - ./compose/ipfs19:/data/ipfs
+
+  # cluster19:
+  #   container_name: cluster19
+  #   image: ipfs/ipfs-cluster:latest
+  #   depends_on:
+  #     - ipfs19
+  #   environment:
+  #     CLUSTER_PEERNAME: cluster19
+  #     CLUSTER_SECRET: ${CLUSTER_SECRET}
+  #     CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs19/tcp/5001
+  #     CLUSTER_CRDT_TRUSTEDPEERS: '*'
+  #     CLUSTER_MONITORPINGINTERVAL: 2s # Speed up peer discovery
+  #   volumes:
+  #     - ./compose/cluster19:/data/ipfs-cluster
