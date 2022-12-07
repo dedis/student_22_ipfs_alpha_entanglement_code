@@ -2,6 +2,7 @@ package ipfsconnector
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -127,4 +128,13 @@ func (c *IPFSConnector) GetMerkleTree(cid string, lattice *entangler.Lattice) (*
 	}
 
 	return getMerkleNode(cid)
+}
+
+// GetTotalBlocks returns the total number of blocks in the DAG pointed by the cid
+func (c *IPFSConnector) GetTotalBlocks(cid string) (int, error) {
+	filestate, err := c.shell.FilesStat(context.Background(), "/ipfs/"+cid)
+	if err != nil {
+		return 0, err
+	}
+	return filestate.Blocks + 1, nil
 }

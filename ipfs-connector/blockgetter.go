@@ -13,7 +13,7 @@ type IPFSGetter struct {
 	DataIndexCIDMap SafeMap
 	DataFilter      map[int]struct{}
 	Parity          [][]string
-	ParityFilter    map[int]struct{}
+	ParityFilter    []map[int]struct{}
 
 	BlockNum int
 }
@@ -40,13 +40,15 @@ func (getter *IPFSGetter) GetData(index int) ([]byte, error) {
 	}
 
 	/* get the data, mask to represent the data loss */
-	if _, ok = getter.DataFilter[index]; ok {
-		err := xerrors.Errorf("no data exists")
-		return nil, err
-	} else {
-		data, err := getter.GetRawBlock(cid)
-		return data, err
+	if getter.DataFilter != nil {
+		if _, ok = getter.DataFilter[index]; ok {
+			err := xerrors.Errorf("no data exists")
+			return nil, err
+		}
 	}
+	data, err := getter.GetRawBlock(cid)
+	return data, err
+
 }
 
 func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
@@ -63,13 +65,16 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 	cid := getter.Parity[strand][index-1]
 
 	/* Get the parity, mask to represent the parity loss */
-	if _, ok := getter.ParityFilter[index]; ok {
-		err := xerrors.Errorf("no parity exists")
-		return nil, err
-	} else {
-		data, err := getter.GetFileToMem(cid)
-		return data, err
+	if getter.ParityFilter != nil {
+		if _, ok := getter.ParityFilter[strand][index]; ok {
+			err := xerrors.Errorf("no parity exists")
+			return nil, err
+		}
 	}
+
+	data, err := getter.GetFileToMem(cid)
+	return data, err
+
 }
 
 type SafeMap struct {

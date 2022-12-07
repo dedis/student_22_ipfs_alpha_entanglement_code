@@ -15,7 +15,6 @@ type DownloadOption struct {
 	MetaCID           string
 	UploadRecoverData bool
 	DataFilter        []int
-	ParityFilter      []int
 }
 
 // Download download the original file, repair it if metadata is provided
@@ -53,10 +52,6 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 		getter.DataFilter = make(map[int]struct{}, len(option.DataFilter))
 		for _, index := range option.DataFilter {
 			getter.DataFilter[index] = struct{}{}
-		}
-		getter.ParityFilter = make(map[int]struct{}, len(option.ParityFilter))
-		for _, index := range option.ParityFilter {
-			getter.ParityFilter[index] = struct{}{}
 		}
 	}
 

@@ -16,11 +16,11 @@ func Test_Entanglement(t *testing.T) {
 		return func(t *testing.T) {
 			// util.Enable_LogPrint()
 
-			os.Remove(filepath.Join("data/entangler", input+"_entanglement_0_generated"))
-			os.Remove(filepath.Join("data/entangler", input+"_entanglement_1_generated"))
-			os.Remove(filepath.Join("data/entangler", input+"_entanglement_2_generated"))
+			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_0_generated"))
+			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_1_generated"))
+			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_2_generated"))
 
-			data, err := os.ReadFile(filepath.Join("data/entangler", input))
+			data, err := os.ReadFile(filepath.Join("../data/entangler", input))
 			util.CheckError(err, "fail to read input file")
 
 			dataChan := make(chan []byte, len(data)/32+1)
@@ -41,7 +41,7 @@ func Test_Entanglement(t *testing.T) {
 
 			outputPaths := make([]string, 3)
 			for k := 0; k < alpha; k++ {
-				outputPaths[k] = fmt.Sprintf("data/entangler/my_%s_entanglement_%d", input, k)
+				outputPaths[k] = fmt.Sprintf("../data/entangler/my_%s_entanglement_%d", input, k)
 				defer os.Remove(outputPaths[k])
 			}
 

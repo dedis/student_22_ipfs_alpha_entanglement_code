@@ -69,7 +69,6 @@ func (c *Client) AddDownloadCmd() {
 	downloadCmd.Flags().StringVarP(&opt.MetaCID, "metacid", "m", "", "Provide metafile cid for recovery")
 	downloadCmd.Flags().BoolVarP(&opt.UploadRecoverData, "upload-recovery", "u", true, "Allow upload recovered chunk back to IPFS network")
 	downloadCmd.Flags().IntSliceVar(&opt.DataFilter, "missing-data", []int{}, "Specify the missing data blocks for testing")
-	downloadCmd.Flags().IntSliceVar(&opt.ParityFilter, "missing-parity", []int{}, "Specify the missing parity blocks for testing")
 
 	c.AddCommand(downloadCmd)
 }
