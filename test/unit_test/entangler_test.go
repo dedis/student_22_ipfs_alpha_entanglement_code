@@ -8,7 +8,8 @@ import (
 	"testing"
 
 	"ipfs-alpha-entanglement-code/entangler"
-	"ipfs-alpha-entanglement-code/util"
+
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Entanglement(t *testing.T) {
@@ -21,7 +22,7 @@ func Test_Entanglement(t *testing.T) {
 			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_2_generated"))
 
 			data, err := os.ReadFile(filepath.Join("../data/entangler", input))
-			util.CheckError(err, "fail to read input file")
+			require.NoError(t, err)
 
 			dataChan := make(chan []byte, len(data)/32+1)
 
@@ -47,30 +48,20 @@ func Test_Entanglement(t *testing.T) {
 
 			parityChan := make(chan entangler.EntangledBlock, alpha*len(data))
 			err = tangler.Entangle(dataChan, parityChan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
+
 			err = tangler.WriteEntanglementToFile(0, outputPaths, parityChan)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			for k := 0; k < alpha; k++ {
 				expectedResult, err := os.ReadFile(outputPaths[k])
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
+
 				myResult, err := os.ReadFile(outputPaths[k])
-				if err != nil {
-					t.Fatal(err)
-				}
-				util.CheckError(err, "fail to read horizaontal entanglement file")
+				require.NoError(t, err)
+
 				res := bytes.Compare(myResult, expectedResult)
-				if res != 0 {
-					t.Fatal(util.Red("Strand %d not equal: %d\n"), k, res)
-				} else {
-					fmt.Printf(util.Green("Strand %d equal\n"), k)
-				}
+				require.Equal(t, res, 0)
 			}
 		}
 	}

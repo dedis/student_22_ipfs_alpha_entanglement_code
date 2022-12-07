@@ -14,12 +14,16 @@ type BlockGetter interface {
 }
 
 type Lattice struct {
+	*sync.Mutex
+
 	Entangler
 	DataBlocks   []*Block
 	ParityBlocks [][]*Block
 
 	Getter BlockGetter
 	Once   sync.Once
+
+	requestCounter uint
 
 	SwitchDepth uint
 }
@@ -29,6 +33,7 @@ func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter, 
 	var tangler = *NewEntangler(alpha, s, p)
 	tangler.ChunkNum = blockNum
 	lattice = &Lattice{
+		Mutex:        &sync.Mutex{},
 		Entangler:    tangler,
 		DataBlocks:   make([]*Block, 0),
 		ParityBlocks: make([][]*Block, alpha),
@@ -120,18 +125,19 @@ func (l *Lattice) getBlock(index int) (block *Block) {
 
 // getDataFromBlock recovers a block with missing chunk using the lattice (hybrid, auto switch)
 func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error) {
+	rid := l.getRequestID()
 	if allowDepth > 0 {
-		data, err := l.getDataFromBlockSequential(block, allowDepth)
+		data, err := l.getDataFromBlockSequential(rid, block, allowDepth)
 		if err == nil {
 			return data, nil
 		}
 	}
 
-	return l.getDataFromBlockParallel(block)
+	return l.getDataFromBlockParallel(rid, block)
 }
 
 // getDataFromBlockSequential recovers a block with missing chunk using the lattice (single thread)
-func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (data []byte, err error) {
+func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth uint) (data []byte, err error) {
 	recursiveRecover := func(block *Block, allowDepth uint) {
 		// if already has data
 		if block.IsAvailable() {
@@ -161,12 +167,12 @@ func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (dat
 			return
 		}
 		for _, mypair := range pairs {
-			leftChunk, RepairErr := l.getDataFromBlockSequential(mypair.Left, allowDepth-1)
+			leftChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Left, allowDepth-1)
 			if RepairErr != nil {
 				continue
 			}
 
-			rightChunk, RepairErr := l.getDataFromBlockSequential(mypair.Right, allowDepth-1)
+			rightChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Right, allowDepth-1)
 			if RepairErr != nil {
 				continue
 			}
@@ -189,15 +195,16 @@ func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (dat
 }
 
 // getDataFromBlockParallel recovers a block with missing chunk using the lattice (multiple threads)
-func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error) {
+func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte, err error) {
 	myCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var recursiveRecover func(*Block, context.Context, chan bool)
-	recursiveRecover = func(block *Block, ctx context.Context, channel chan bool) {
-		repairSuccess := false
+	var recursiveRecover func(context.Context, uint, *Block, chan bool)
+	recursiveRecover = func(ctx context.Context, rid uint, block *Block, channel chan bool) {
+		var repairSuccess bool = false
+		var modifyState bool = true
 		defer func() {
-			block.FinishRepair(repairSuccess)
+			block.FinishRepair(repairSuccess, modifyState)
 			channel <- true
 		}()
 
@@ -205,9 +212,9 @@ func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error
 		case <-ctx.Done():
 			return
 		default:
-			// if already has data
-			if !block.StartRepair(ctx) {
-				repairSuccess = true
+			// if already has data or already visited
+			if !block.StartRepair(ctx, rid) {
+				modifyState = false
 				return
 			}
 
@@ -242,8 +249,8 @@ func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error
 					defer func() { finish <- success }()
 
 					resultChan := make(chan bool, 2)
-					go recursiveRecover(pair.Left, ctx, resultChan)
-					go recursiveRecover(pair.Right, ctx, resultChan)
+					go recursiveRecover(ctx, rid, pair.Left, resultChan)
+					go recursiveRecover(ctx, rid, pair.Right, resultChan)
 
 					<-resultChan
 					<-resultChan
@@ -285,7 +292,7 @@ func (l *Lattice) getDataFromBlockParallel(block *Block) (data []byte, err error
 	}
 
 	myChannel := make(chan bool, 1)
-	recursiveRecover(block, myCtx, myChannel)
+	recursiveRecover(myCtx, rid, block, myChannel)
 	<-myChannel
 	data, err = block.GetData()
 	if err != nil {
@@ -308,4 +315,14 @@ func (l *Lattice) downloadBlock(block *Block) (err error) {
 	}
 
 	return err
+}
+
+// generate uniq id for the request
+func (l *Lattice) getRequestID() uint {
+	l.Lock()
+	defer l.Unlock()
+
+	id := l.requestCounter
+	l.requestCounter++
+	return id
 }

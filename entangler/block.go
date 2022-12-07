@@ -40,6 +40,7 @@ type Block struct {
 
 	Status       BlockStatus
 	waitingGroup *sync.Cond
+	currRequest  uint
 }
 
 // NewBlock creates a block in the lattice
@@ -86,7 +87,7 @@ func (b *Block) IsRepaired() bool {
 }
 
 // StartRepair sets the block's status to RepairPending if no previous attempt
-func (b *Block) StartRepair(ctx context.Context) bool {
+func (b *Block) StartRepair(ctx context.Context, rid uint) bool {
 	b.Lock()
 	defer b.Unlock()
 	for {
@@ -95,11 +96,16 @@ func (b *Block) StartRepair(ctx context.Context) bool {
 			return false
 		default:
 			if b.Status == RepairPending {
+				if b.currRequest == rid {
+					// already visited by the request
+					return false
+				}
 				b.waitingGroup.Wait()
 			} else if b.Status == DataAvailable {
 				return false
 			} else {
 				b.Status = RepairPending
+				b.currRequest = rid
 				return true
 			}
 		}
@@ -107,10 +113,10 @@ func (b *Block) StartRepair(ctx context.Context) bool {
 }
 
 // FinishRepair update the block status and wake the waiting thread
-func (b *Block) FinishRepair(success bool) {
+func (b *Block) FinishRepair(success bool, modifyState bool) {
 	b.Lock()
 	defer b.Unlock()
-	shouldUpdate := b.Status == RepairPending
+	shouldUpdate := modifyState && b.Status == RepairPending
 	if success {
 		if shouldUpdate {
 			b.Status = DataAvailable
