@@ -13,6 +13,7 @@ import (
 )
 
 func Test_Entanglement(t *testing.T) {
+	EnableLog(true)
 	getTest := func(input string) func(*testing.T) {
 		return func(t *testing.T) {
 			// util.Enable_LogPrint()
