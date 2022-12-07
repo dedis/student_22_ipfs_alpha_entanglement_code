@@ -16,8 +16,6 @@ func Test_Entanglement(t *testing.T) {
 	EnableLog(true)
 	getTest := func(input string) func(*testing.T) {
 		return func(t *testing.T) {
-			// util.Enable_LogPrint()
-
 			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_0_generated"))
 			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_1_generated"))
 			os.Remove(filepath.Join("../data/entangler", input+"_entanglement_2_generated"))

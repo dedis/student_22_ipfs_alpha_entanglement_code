@@ -139,14 +139,24 @@ func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error
 // getDataFromBlockSequential recovers a block with missing chunk using the lattice (single thread)
 func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth uint) (data []byte, err error) {
 	recursiveRecover := func(block *Block, allowDepth uint) {
-		// if already has data
-		if block.IsAvailable() {
+		var repairSuccess bool = false
+		var modifyState bool = true
+		defer func() {
+			if modifyState {
+				block.FinishRepair(repairSuccess)
+			}
+		}()
+
+		// if already has data or already visited
+		if !block.StartRepair(context.Background(), rid) {
+			modifyState = false
 			return
 		}
 
 		// download data
 		downloadErr := l.downloadBlock(block)
 		if downloadErr == nil {
+			repairSuccess = true
 			if block.IsParity {
 				util.LogPrint(util.Magenta("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
 				return
@@ -179,6 +189,7 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 
 			if block.Recover(leftChunk, rightChunk) == nil {
 				util.LogPrint(util.Green("{Sequential} Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
+				repairSuccess = true
 				return
 			}
 		}
@@ -204,7 +215,9 @@ func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte,
 		var repairSuccess bool = false
 		var modifyState bool = true
 		defer func() {
-			block.FinishRepair(repairSuccess, modifyState)
+			if modifyState {
+				block.FinishRepair(repairSuccess)
+			}
 			channel <- true
 		}()
 

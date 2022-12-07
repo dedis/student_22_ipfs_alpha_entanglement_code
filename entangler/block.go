@@ -93,6 +93,7 @@ func (b *Block) StartRepair(ctx context.Context, rid uint) bool {
 	for {
 		select {
 		case <-ctx.Done():
+			b.waitingGroup.Broadcast()
 			return false
 		default:
 			if b.Status == RepairPending {
@@ -113,10 +114,10 @@ func (b *Block) StartRepair(ctx context.Context, rid uint) bool {
 }
 
 // FinishRepair update the block status and wake the waiting thread
-func (b *Block) FinishRepair(success bool, modifyState bool) {
+func (b *Block) FinishRepair(success bool) {
 	b.Lock()
 	defer b.Unlock()
-	shouldUpdate := modifyState && b.Status == RepairPending
+	shouldUpdate := b.Status == RepairPending
 	if success {
 		if shouldUpdate {
 			b.Status = DataAvailable
