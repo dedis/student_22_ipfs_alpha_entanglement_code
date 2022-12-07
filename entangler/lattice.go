@@ -121,7 +121,10 @@ func (l *Lattice) getBlock(index int) (block *Block) {
 // getDataFromBlock recovers a block with missing chunk using the lattice (hybrid, auto switch)
 func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error) {
 	if allowDepth > 0 {
-		return l.getDataFromBlockSequential(block, allowDepth)
+		data, err := l.getDataFromBlockSequential(block, allowDepth)
+		if err == nil {
+			return data, nil
+		}
 	}
 
 	return l.getDataFromBlockParallel(block)
@@ -158,12 +161,12 @@ func (l *Lattice) getDataFromBlockSequential(block *Block, allowDepth uint) (dat
 			return
 		}
 		for _, mypair := range pairs {
-			leftChunk, RepairErr := l.getDataFromBlock(mypair.Left, allowDepth-1)
+			leftChunk, RepairErr := l.getDataFromBlockSequential(mypair.Left, allowDepth-1)
 			if RepairErr != nil {
 				continue
 			}
 
-			rightChunk, RepairErr := l.getDataFromBlock(mypair.Right, allowDepth-1)
+			rightChunk, RepairErr := l.getDataFromBlockSequential(mypair.Right, allowDepth-1)
 			if RepairErr != nil {
 				continue
 			}
