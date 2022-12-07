@@ -25,7 +25,12 @@ var InfoMap = map[string]FileInfo{
 	},
 }
 
-var recoveryRate = func(fileinfo FileInfo, missingData map[int]struct{}, missingParity []map[int]struct{}) (dataRatio float32) {
+type TestResult struct {
+	recoverRate    float32
+	downloadParity uint
+}
+
+var recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingParity []map[int]struct{}) (result TestResult) {
 	c, err := cmd.NewClient()
 	if err != nil {
 		panic(err)
@@ -86,10 +91,23 @@ var recoveryRate = func(fileinfo FileInfo, missingData map[int]struct{}, missing
 		}
 	}
 	walker(fileinfo.fileCID)
-	return float32(successCount) / float32(fileinfo.totalBlock)
+
+	result.recoverRate = float32(successCount) / float32(fileinfo.totalBlock)
+
+	var downloadParity uint = 0
+	for _, parities := range lattice.ParityBlocks {
+		for _, parity := range parities {
+			if len(parity.Data) > 0 {
+				downloadParity++
+			}
+		}
+	}
+	result.downloadParity = downloadParity
+
+	return result
 }
 
-func Test_Recovery_Rate(t *testing.T) {
+func Test_Only_Data_Loss(t *testing.T) {
 	onlyData := func(missNum int, fileinfo FileInfo) func(*testing.T) {
 		return func(*testing.T) {
 			indexes := make([]int, fileinfo.totalBlock)
@@ -103,8 +121,9 @@ func Test_Recovery_Rate(t *testing.T) {
 				indexes[r], indexes[len(indexes)-1] = indexes[len(indexes)-1], indexes[r]
 				indexes = indexes[:len(indexes)-1]
 			}
-			successRate := recoveryRate(fileinfo, missedIndexes, nil)
-			t.Logf("Success Data Recovery Rate: %f", successRate)
+			result := recovery(fileinfo, missedIndexes, nil)
+			t.Logf("Success Data Recovery Rate: %f", result.recoverRate)
+			t.Logf("Success Parity Overhead: %d", result.downloadParity)
 		}
 	}
 	t.Run("test", onlyData(1, InfoMap["20MB"]))
