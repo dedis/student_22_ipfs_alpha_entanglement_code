@@ -26,7 +26,7 @@ func (c *Client) AddUploadCmd() {
 		Long:  "Upload a file to IPFS with optional entanglement",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			cid, metaCID, err := c.Upload(args[0], alpha, s, p)
+			cid, metaCID, pinResult, err := c.Upload(args[0], alpha, s, p)
 			if len(cid) > 0 {
 				fmt.Println("Finish adding file to IPFS. File CID: ", cid)
 			}
@@ -36,6 +36,13 @@ func (c *Client) AddUploadCmd() {
 			if err != nil {
 				fmt.Println("Error:", err)
 				os.Exit(1)
+			}
+			if pinResult != nil {
+				err = pinResult()
+				if err != nil {
+					fmt.Println("Error:", err)
+					os.Exit(1)
+				}
 			}
 			fmt.Println("Upload succeeds.")
 		},

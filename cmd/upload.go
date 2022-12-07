@@ -10,10 +10,10 @@ import (
 )
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
-func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, err error) {
+func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, pinResult func() error, err error) {
 	err = c.InitIPFSConnector()
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
 	// add original file to ipfs
@@ -23,18 +23,15 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	if alpha < 1 {
 		// expect no entanglement
-		return rootCID, "", nil
+		return rootCID, "", nil, nil
 	}
 
-	err = c.InitIPFSClusterConnector()
-	if err != nil {
-		return rootCID, "", err
-	}
+	clusterErr := c.InitIPFSClusterConnector()
 
 	// get merkle tree from IPFS and flatten the tree
 	root, err := c.GetMerkleTree(rootCID, &entangler.Lattice{})
 	if err != nil {
-		return rootCID, "", xerrors.Errorf("could not read merkle tree: %s", err)
+		return rootCID, "", nil, xerrors.Errorf("could not read merkle tree: %s", err)
 	}
 	nodes := root.GetFlattenedTree(s, p, true)
 	blockNum := len(nodes)
@@ -72,36 +69,53 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	// store parity blocks one by one
 	parityCIDs := make([][]string, alpha)
+	parityPinResult := make([][]bool, alpha)
 	for k := 0; k < alpha; k++ {
 		parityCIDs[k] = make([]string, blockNum)
+		parityPinResult[k] = make([]bool, blockNum)
 	}
 
-	var waitGroup sync.WaitGroup
+	var waitGroupUpload sync.WaitGroup
+	var waitGroupPin sync.WaitGroup
 	for parityBlock := range parityChan {
-		waitGroup.Add(1)
+		waitGroupUpload.Add(1)
+		waitGroupPin.Add(1)
 
 		go func(block entangler.EntangledBlock) {
-			defer waitGroup.Done()
+			defer waitGroupUpload.Done()
 
-			blockCID, err := c.AddAndPinAsFile(block.Data, 1)
+			// upload file to IPFS network
+			blockCID, err := c.AddFileFromMem(block.Data)
 			if err == nil {
 				parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
 			}
+
+			// pin file in cluster
+			if clusterErr == nil {
+				go func() {
+					defer waitGroupPin.Done()
+
+					err := c.AddPin(blockCID, 1)
+					if err == nil {
+						parityPinResult[block.Strand][block.LeftBlockIndex-1] = true
+					}
+				}()
+			}
 		}(parityBlock)
 	}
-	waitGroup.Wait()
+	waitGroupUpload.Wait()
 
-	// check if all parity blocks are added and pinned successfully
+	// check if all parity blocks are added successfully
 	for k := 0; k < alpha; k++ {
 		for i, parity := range parityCIDs[k] {
 			if len(parity) == 0 {
-				return rootCID, "", xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
+				return rootCID, "", nil, xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
 			}
 		}
-		util.LogPrint("Finish uploading and pinning entanglement %d", k)
+		util.LogPrint("Finish uploading entanglement %d", k)
 	}
 
-	// Store Metatdata?
+	// Store Metatdata
 	cidMap := make(map[string]int)
 	for i, node := range nodes {
 		cidMap[node.CID] = i + 1
@@ -116,12 +130,37 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	}
 	rawMetadata, err := json.Marshal(metaData)
 	if err != nil {
-		return rootCID, "", xerrors.Errorf("could not marshal metadata: %s", err)
+		return rootCID, "", nil, xerrors.Errorf("could not marshal metadata: %s", err)
 	}
-	metaCID, err = c.AddAndPinAsFile(rawMetadata, 0)
+	metaCID, err = c.AddFileFromMem(rawMetadata)
 	if err != nil {
-		return rootCID, "", xerrors.Errorf("could not upload metadata: %s", err)
+		return rootCID, "", nil, xerrors.Errorf("could not upload metadata: %s", err)
 	}
 
-	return rootCID, metaCID, nil
+	util.LogPrint("File CID: %s. MetaFile CID: %s", rootCID, metaCID)
+	if clusterErr != nil {
+		return rootCID, metaCID, nil, clusterErr
+	}
+
+	pinResult = func() (err error) {
+		err = c.AddPin(metaCID, 0)
+		if err != nil {
+			return xerrors.Errorf("could not pin metadata: %s", err)
+		}
+
+		waitGroupPin.Wait()
+		// check if all parity blocks are pinned successfully
+		for k := 0; k < alpha; k++ {
+			for i, success := range parityPinResult[k] {
+				if !success {
+					return xerrors.Errorf("could not pin parity %d on strand %d\n", i, k)
+				}
+			}
+			util.LogPrint("Finish pinning entanglement %d", k)
+		}
+
+		return nil
+	}
+
+	return rootCID, metaCID, pinResult, nil
 }
