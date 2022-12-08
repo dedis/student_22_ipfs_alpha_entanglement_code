@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	ipfscluster "ipfs-alpha-entanglement-code/ipfs-cluster"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
-	"os"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
@@ -88,21 +87,7 @@ func (c *Client) AddAndPinAsRaw(data []byte, replicate int) (cid string, err err
 
 // GetMetaData downloads metafile from IPFS network and returns a metafile object
 func (c *Client) GetMetaData(cid string) (metadata *Metadata, err error) {
-	// create temp file to store metadata
-	tempfile, err := os.CreateTemp("", "IPFS-file-*")
-	if err != nil {
-		return nil, err
-	}
-	defer os.Remove(tempfile.Name())
-
-	// download metadata from IPFS network
-	err = c.GetFile(cid, tempfile.Name())
-	if err != nil {
-		return nil, err
-	}
-
-	// unmarshal to Metadata object
-	data, err := os.ReadFile(tempfile.Name())
+	data, err := c.GetFileToMem(cid)
 	if err != nil {
 		return nil, err
 	}

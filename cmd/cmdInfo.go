@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"ipfs-alpha-entanglement-code/performance"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +17,7 @@ func (c *Client) initCmd() {
 
 	c.AddUploadCmd()
 	c.AddDownloadCmd()
+	c.AddPerformanceCmd()
 }
 
 // AddUploadCmd enables upload functionality
@@ -78,4 +81,34 @@ func (c *Client) AddDownloadCmd() {
 	downloadCmd.Flags().IntSliceVar(&opt.DataFilter, "missing-data", []int{}, "Specify the missing data blocks for testing")
 
 	c.AddCommand(downloadCmd)
+}
+
+func (c *Client) AddPerformanceCmd() {
+	var iteration int
+
+	performanceCmd := &cobra.Command{
+		Use:   "perf [testcase] [loss-percentage]",
+		Short: "Performance test for block recovery",
+		Long:  "Performance test for block recovery during download from IPFS",
+		Args:  cobra.MinimumNArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			float, err := strconv.ParseFloat(args[1], 32)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+
+			result := performance.Perf_Recovery(args[0], float32(float), iteration)
+			if result.Err != nil {
+				fmt.Println("Error:", result.Err)
+				return
+			}
+			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
+			fmt.Printf("Parity Overhead: %d\n", result.DownloadParity)
+			fmt.Printf("Successfully Downloaded Block: %d\n", result.SuccessCnt)
+		},
+	}
+	performanceCmd.Flags().IntVarP(&iteration, "iteration", "i", 5, "Repeat the performance test for several times")
+
+	c.AddCommand(performanceCmd)
 }
