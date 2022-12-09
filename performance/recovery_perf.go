@@ -95,13 +95,7 @@ var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingPari
 	return result
 }
 
-func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResult {
-	fileinfo, ok := InfoMap[fileCase]
-	if !ok {
-		return PerfResult{Err: xerrors.Errorf("invalid test case")}
-	}
-
-	missNum := int(float32(fileinfo.TotalBlock*alpha) * missPercent)
+var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (result PerfResult) {
 	avgResult := PerfResult{}
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, alpha)
@@ -145,4 +139,14 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 	avgResult.SuccessCnt = avgResult.SuccessCnt / iteration
 
 	return avgResult
+}
+
+func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResult {
+	fileinfo, ok := InfoMap[fileCase]
+	if !ok {
+		return PerfResult{Err: xerrors.Errorf("invalid test case")}
+	}
+
+	missNum := int(float32(fileinfo.TotalBlock*alpha) * missPercent)
+	return RecoverWithFilter(fileinfo, missNum, iteration)
 }

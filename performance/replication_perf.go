@@ -105,13 +105,7 @@ var RepRecover = func(fileinfo FileInfo, missingData map[int]struct{}, missingRe
 	return result
 }
 
-func Perf_Replication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
-	fileinfo, ok := InfoMap[fileCase]
-	if !ok {
-		return PerfResult{Err: xerrors.Errorf("invalid test case")}
-	}
-
-	missNum := int(float32(fileinfo.TotalBlock*repFactor) * missPercent)
+var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, iteration int) PerfResult {
 	avgResult := PerfResult{}
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, repFactor)
@@ -155,4 +149,14 @@ func Perf_Replication(fileCase string, missPercent float32, repFactor int, itera
 	avgResult.SuccessCnt = avgResult.SuccessCnt / iteration
 
 	return avgResult
+}
+
+func Perf_Replication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
+	fileinfo, ok := InfoMap[fileCase]
+	if !ok {
+		return PerfResult{Err: xerrors.Errorf("invalid test case")}
+	}
+
+	missNum := int(float32(fileinfo.TotalBlock*repFactor) * missPercent)
+	return RepRecoverWithFilter(fileinfo, missNum, repFactor, iteration)
 }
