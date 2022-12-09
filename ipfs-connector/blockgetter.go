@@ -2,7 +2,7 @@ package ipfsconnector
 
 import (
 	"ipfs-alpha-entanglement-code/entangler"
-	"sync"
+	"ipfs-alpha-entanglement-code/util"
 
 	"golang.org/x/xerrors"
 )
@@ -10,7 +10,7 @@ import (
 type IPFSGetter struct {
 	entangler.BlockGetter
 	*IPFSConnector
-	DataIndexCIDMap SafeMap
+	DataIndexCIDMap util.SafeMap
 	DataFilter      map[int]struct{}
 	Parity          [][]string
 	ParityFilter    []map[int]struct{}
@@ -19,10 +19,8 @@ type IPFSGetter struct {
 }
 
 func CreateIPFSGetter(connector *IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) *IPFSGetter {
-	indexToDataCIDMap := SafeMap{&sync.RWMutex{}, map[int]string{}}
-	for cid, index := range CIDIndexMap {
-		indexToDataCIDMap.Add(index, cid)
-	}
+	indexToDataCIDMap := *util.NewSafeMap()
+	indexToDataCIDMap.AddReverseMap(CIDIndexMap)
 	return &IPFSGetter{
 		IPFSConnector:   connector,
 		DataIndexCIDMap: indexToDataCIDMap,
@@ -65,7 +63,7 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 	cid := getter.Parity[strand][index-1]
 
 	/* Get the parity, mask to represent the parity loss */
-	if getter.ParityFilter != nil && len(getter.Parity) > strand && getter.ParityFilter[strand] != nil {
+	if getter.ParityFilter != nil && len(getter.ParityFilter) > strand && getter.ParityFilter[strand] != nil {
 		if _, ok := getter.ParityFilter[strand][index]; ok {
 			err := xerrors.Errorf("no parity exists")
 			return nil, err
@@ -75,24 +73,4 @@ func (getter *IPFSGetter) GetParity(index int, strand int) ([]byte, error) {
 	data, err := getter.GetFileToMem(cid)
 	return data, err
 
-}
-
-type SafeMap struct {
-	*sync.RWMutex
-	unsafeMap map[int]string
-}
-
-func (m *SafeMap) Add(key int, val string) {
-	m.Lock()
-	defer m.Unlock()
-
-	m.unsafeMap[key] = val
-}
-
-func (m *SafeMap) Get(key int) (val string, ok bool) {
-	m.RLock()
-	defer m.RUnlock()
-
-	val, ok = m.unsafeMap[key]
-	return
 }

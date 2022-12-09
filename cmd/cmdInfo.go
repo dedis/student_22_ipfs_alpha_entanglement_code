@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"ipfs-alpha-entanglement-code/performance"
 	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -84,21 +83,18 @@ func (c *Client) AddDownloadCmd() {
 }
 
 func (c *Client) AddPerformanceCmd() {
-	var iteration int
+	var rootCmd = &cobra.Command{Use: "perf"}
 
-	performanceCmd := &cobra.Command{
-		Use:   "perf [testcase] [loss-percentage]",
+	var fileCase string
+	var lossPercent float32
+	var iteration int
+	recoverCmd := &cobra.Command{
+		Use:   "recover [testcase] [loss-percentage]",
 		Short: "Performance test for block recovery",
 		Long:  "Performance test for block recovery during download from IPFS",
-		Args:  cobra.MinimumNArgs(2),
+		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			float, err := strconv.ParseFloat(args[1], 32)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
-			}
-
-			result := performance.Perf_Recovery(args[0], float32(float), iteration)
+			result := performance.Perf_Recovery(fileCase, lossPercent, iteration)
 			if result.Err != nil {
 				fmt.Println("Error:", result.Err)
 				return
@@ -108,7 +104,33 @@ func (c *Client) AddPerformanceCmd() {
 			fmt.Printf("Successfully Downloaded Block: %d\n", result.SuccessCnt)
 		},
 	}
-	performanceCmd.Flags().IntVarP(&iteration, "iteration", "i", 5, "Repeat the performance test for several times")
+	recoverCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
+	recoverCmd.Flags().Float32VarP(&lossPercent, "loss-percent", "p", 0.5, "Loss percentage of the parities")
+	recoverCmd.Flags().IntVarP(&iteration, "iteration", "i", 5, "Repeat the performance test for several times")
+	rootCmd.AddCommand(recoverCmd)
 
-	c.AddCommand(performanceCmd)
+	var repFactor int
+	repCmd := &cobra.Command{
+		Use:   "rep [testcase] [loss-percentage]",
+		Short: "Performance test for blocks replication",
+		Long:  "Performance test for blocks that are replicated in the IPFS",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			result := performance.Perf_Replication(fileCase, lossPercent, repFactor, iteration)
+			if result.Err != nil {
+				fmt.Println("Error:", result.Err)
+				return
+			}
+			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
+			// fmt.Printf("Parity Overhead: %d\n", result.DownloadParity)
+			fmt.Printf("Successfully Downloaded Block: %d\n", result.SuccessCnt)
+		},
+	}
+	repCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
+	repCmd.Flags().Float32VarP(&lossPercent, "loss-percent", "p", 0.5, "Loss percentage of the replication")
+	repCmd.Flags().IntVarP(&iteration, "iteration", "i", 5, "Repeat the performance test for several times")
+	repCmd.Flags().IntVarP(&repFactor, "rep-factor", "r", 3, "Set the replication factor of the data")
+	rootCmd.AddCommand(repCmd)
+
+	c.AddCommand(rootCmd)
 }

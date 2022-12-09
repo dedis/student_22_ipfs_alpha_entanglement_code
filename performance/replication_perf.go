@@ -1,23 +1,65 @@
 package performance
 
 import (
-	"bytes"
 	"encoding/json"
-	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
+	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
 
 	"golang.org/x/xerrors"
 )
 
-type PerfResult struct {
-	SuccessCnt     int
-	RecoverRate    float32
-	DownloadParity uint
-	Err            error
+type RepGetter struct {
+	*ipfsconnector.IPFSConnector
+
+	DataIndexCIDMap util.SafeMap
+	DataFilter      map[int]struct{}
+	RepFilter       []map[int]struct{}
 }
 
-var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingParity []map[int]struct{}) (result PerfResult) {
+func CreateRepGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int) *RepGetter {
+	indexToDataCIDMap := *util.NewSafeMap()
+	indexToDataCIDMap.AddReverseMap(CIDIndexMap)
+	return &RepGetter{
+		IPFSConnector:   connector,
+		DataIndexCIDMap: indexToDataCIDMap,
+	}
+}
+
+func (getter *RepGetter) GetData(index int) (data []byte, err error) {
+	cid, ok := getter.DataIndexCIDMap.Get(index)
+	if !ok {
+		err := xerrors.Errorf("invalid index")
+		return nil, err
+	}
+
+	if getter.DataFilter != nil {
+		if _, ok = getter.DataFilter[index]; ok {
+			/* get the rep, mask to represent the rep loss */
+			if getter.RepFilter != nil {
+				missing := true
+				for _, repFilter := range getter.RepFilter {
+					if repFilter != nil {
+						missing = false
+						break
+					}
+					if _, ok := repFilter[index]; !ok {
+						missing = false
+						break
+					}
+				}
+				if missing {
+					err := xerrors.Errorf("no data exists")
+					return nil, err
+				}
+			}
+		}
+	}
+	data, err = getter.GetRawBlock(cid)
+	return data, err
+}
+
+var RepRecover = func(fileinfo FileInfo, missingData map[int]struct{}, missingReplication []map[int]struct{}) (result PerfResult) {
 	conn, err := ipfsconnector.CreateIPFSConnector(0)
 	if err != nil {
 		return PerfResult{Err: err}
@@ -34,36 +76,16 @@ var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingPari
 		return PerfResult{Err: err}
 	}
 
-	chunkNum := len(metaData.DataCIDIndexMap)
-	// create getter
-	getter := ipfsconnector.CreateIPFSGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+	getter := CreateRepGetter(conn, metaData.DataCIDIndexMap)
 	getter.DataFilter = missingData
-	getter.ParityFilter = missingParity
+	getter.RepFilter = missingReplication
 
-	// create lattice
-	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 1)
-	lattice.Init()
-
-	// download & recover file from IPFS
 	successCount := 0
 	var walker func(string)
 	walker = func(cid string) {
-		chunk, hasRepaired, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
+		chunk, err := getter.GetData(metaData.DataCIDIndexMap[cid])
 		if err != nil {
 			return
-		}
-
-		// upload missing chunk back to the network if allowed
-		if hasRepaired {
-			// TODO: does trimming zero always works?
-			chunk = bytes.Trim(chunk, "\x00")
-			uploadCID, err := conn.AddRawData(chunk)
-			if err != nil {
-				return
-			}
-			if uploadCID != cid {
-				return
-			}
 		}
 		successCount++
 
@@ -81,21 +103,10 @@ var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingPari
 
 	result.SuccessCnt = successCount
 	result.RecoverRate = float32(successCount) / float32(fileinfo.TotalBlock)
-
-	var downloadParity uint = 0
-	for _, parities := range lattice.ParityBlocks {
-		for _, parity := range parities {
-			if len(parity.Data) > 0 {
-				downloadParity++
-			}
-		}
-	}
-	result.DownloadParity = downloadParity
-
 	return result
 }
 
-func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResult {
+func Perf_Replication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
 	fileinfo, ok := InfoMap[fileCase]
 	if !ok {
 		return PerfResult{Err: xerrors.Errorf("invalid test case")}
@@ -104,7 +115,7 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 	missNum := int(float32(fileinfo.TotalBlock) * missPercent)
 	avgResult := PerfResult{}
 	for i := 0; i < iteration; i++ {
-		indexes := make([][]int, alpha)
+		indexes := make([][]int, repFactor)
 		for i := range indexes {
 			indexes[i] = make([]int, fileinfo.TotalBlock)
 			for j := 0; j < fileinfo.TotalBlock; j++ {
@@ -118,24 +129,24 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 			missedDataIndexes[i] = struct{}{}
 		}
 
-		/* Some parity block is missing */
-		missedParityIndexes := make([]map[int]struct{}, alpha)
-		for i := 0; i < alpha; i++ {
-			missedParityIndexes[i] = map[int]struct{}{}
+		/* Some replication block is missing */
+		missedRepIndexes := make([]map[int]struct{}, repFactor)
+		for i := 0; i < repFactor; i++ {
+			missedRepIndexes[i] = map[int]struct{}{}
 		}
 		for i := 0; i < missNum; i++ {
-			rOuter := int(rand.Int63n(int64(alpha)))
+			rOuter := int(rand.Int63n(int64(repFactor)))
 			for len(indexes[rOuter]) == 0 {
-				rOuter = int(rand.Int63n(int64(alpha)))
+				rOuter = int(rand.Int63n(int64(repFactor)))
 			}
 			rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
-			missedParityIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
+			missedRepIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
 			indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
 				indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
 			indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
 		}
 
-		result := Recovery(fileinfo, missedDataIndexes, missedParityIndexes)
+		result := RepRecover(fileinfo, missedDataIndexes, missedRepIndexes)
 		avgResult.RecoverRate += result.RecoverRate
 		avgResult.DownloadParity += result.DownloadParity
 		avgResult.SuccessCnt += result.SuccessCnt
