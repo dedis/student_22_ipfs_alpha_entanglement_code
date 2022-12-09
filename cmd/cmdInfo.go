@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"ipfs-alpha-entanglement-code/performance"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -94,6 +96,7 @@ func (c *Client) AddPerformanceCmd() {
 		Long:  "Performance test for block recovery during download from IPFS",
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
+			rand.Seed(time.Now().UnixNano())
 			result := performance.Perf_Recovery(fileCase, lossPercent, iteration)
 			if result.Err != nil {
 				fmt.Println("Error:", result.Err)
@@ -116,6 +119,7 @@ func (c *Client) AddPerformanceCmd() {
 		Long:  "Performance test for blocks that are replicated in the IPFS",
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
+			rand.Seed(time.Now().UnixNano())
 			result := performance.Perf_Replication(fileCase, lossPercent, repFactor, iteration)
 			if result.Err != nil {
 				fmt.Println("Error:", result.Err)

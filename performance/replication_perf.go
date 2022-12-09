@@ -39,9 +39,8 @@ func (getter *RepGetter) GetData(index int) (data []byte, err error) {
 			if getter.RepFilter != nil {
 				missing := true
 				for _, repFilter := range getter.RepFilter {
-					if repFilter != nil {
-						missing = false
-						break
+					if repFilter == nil {
+						continue
 					}
 					if _, ok := repFilter[index]; !ok {
 						missing = false
@@ -112,7 +111,7 @@ func Perf_Replication(fileCase string, missPercent float32, repFactor int, itera
 		return PerfResult{Err: xerrors.Errorf("invalid test case")}
 	}
 
-	missNum := int(float32(fileinfo.TotalBlock) * missPercent)
+	missNum := int(float32(fileinfo.TotalBlock*repFactor) * missPercent)
 	avgResult := PerfResult{}
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, repFactor)
@@ -126,7 +125,7 @@ func Perf_Replication(fileCase string, missPercent float32, repFactor int, itera
 		/* All data block is missing */
 		missedDataIndexes := map[int]struct{}{}
 		for i := 0; i < fileinfo.TotalBlock; i++ {
-			missedDataIndexes[i] = struct{}{}
+			missedDataIndexes[i+1] = struct{}{}
 		}
 
 		/* Some replication block is missing */

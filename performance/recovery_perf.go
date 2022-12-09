@@ -101,7 +101,7 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 		return PerfResult{Err: xerrors.Errorf("invalid test case")}
 	}
 
-	missNum := int(float32(fileinfo.TotalBlock) * missPercent)
+	missNum := int(float32(fileinfo.TotalBlock*alpha) * missPercent)
 	avgResult := PerfResult{}
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, alpha)
@@ -115,7 +115,7 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 		/* All data block is missing */
 		missedDataIndexes := map[int]struct{}{}
 		for i := 0; i < fileinfo.TotalBlock; i++ {
-			missedDataIndexes[i] = struct{}{}
+			missedDataIndexes[i+1] = struct{}{}
 		}
 
 		/* Some parity block is missing */
