@@ -104,7 +104,7 @@ func (c *Client) AddPerformanceCmd() {
 			}
 			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
 			fmt.Printf("Parity Overhead: %d\n", result.DownloadParity)
-			fmt.Printf("Successfully Downloaded Block: %d\n", result.SuccessCnt)
+			fmt.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
 		},
 	}
 	recoverCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
@@ -127,7 +127,7 @@ func (c *Client) AddPerformanceCmd() {
 			}
 			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
 			// fmt.Printf("Parity Overhead: %d\n", result.DownloadParity)
-			fmt.Printf("Successfully Downloaded Block: %d\n", result.SuccessCnt)
+			fmt.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
 		},
 	}
 	repCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
