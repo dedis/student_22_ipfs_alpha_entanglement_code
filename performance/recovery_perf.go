@@ -11,10 +11,11 @@ import (
 )
 
 type PerfResult struct {
-	SuccessCnt     int
-	RecoverRate    float32
-	DownloadParity uint
-	Err            error
+	PartialSuccessCnt int
+	FullSuccessCnt    float32
+	RecoverRate       float32
+	DownloadParity    uint
+	Err               error
 }
 
 var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingParity []map[int]struct{}) (result PerfResult) {
@@ -79,7 +80,7 @@ var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingPari
 	}
 	walker(fileinfo.FileCID)
 
-	result.SuccessCnt = successCount
+	result.PartialSuccessCnt = successCount
 	result.RecoverRate = float32(successCount) / float32(fileinfo.TotalBlock)
 
 	var downloadParity uint = 0
@@ -132,12 +133,15 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (res
 		result := Recovery(fileinfo, missedDataIndexes, missedParityIndexes)
 		avgResult.RecoverRate += result.RecoverRate
 		avgResult.DownloadParity += result.DownloadParity
-		avgResult.SuccessCnt += result.SuccessCnt
+		avgResult.PartialSuccessCnt += result.PartialSuccessCnt
+		if result.PartialSuccessCnt == fileinfo.TotalBlock {
+			avgResult.FullSuccessCnt++
+		}
 	}
 	avgResult.RecoverRate = avgResult.RecoverRate / float32(iteration)
 	avgResult.DownloadParity = avgResult.DownloadParity / uint(iteration)
-	avgResult.SuccessCnt = avgResult.SuccessCnt / iteration
-
+	avgResult.PartialSuccessCnt = avgResult.PartialSuccessCnt / iteration
+	avgResult.FullSuccessCnt = avgResult.FullSuccessCnt / float32(iteration)
 	return avgResult
 }
 

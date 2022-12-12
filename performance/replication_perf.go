@@ -2,11 +2,10 @@ package performance
 
 import (
 	"encoding/json"
+	"golang.org/x/xerrors"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
-
-	"golang.org/x/xerrors"
 )
 
 type RepGetter struct {
@@ -100,14 +99,14 @@ var RepRecover = func(fileinfo FileInfo, missingData map[int]struct{}, missingRe
 	}
 	walker(fileinfo.FileCID)
 
-	result.SuccessCnt = successCount
+	result.PartialSuccessCnt = successCount
 	result.RecoverRate = float32(successCount) / float32(fileinfo.TotalBlock)
 	return result
 }
 
 var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, iteration int) PerfResult {
 	avgResult := PerfResult{}
-	for i := 0; i < iteration; i++ {
+	for b := 0; b < iteration; b++ {
 		indexes := make([][]int, repFactor)
 		for i := range indexes {
 			indexes[i] = make([]int, fileinfo.TotalBlock)
@@ -127,27 +126,34 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 		for i := 0; i < repFactor; i++ {
 			missedRepIndexes[i] = map[int]struct{}{}
 		}
+
+		indexRange := repFactor * fileinfo.TotalBlock
+		missingIndex := make(map[int]bool)
 		for i := 0; i < missNum; i++ {
-			rOuter := int(rand.Int63n(int64(repFactor)))
-			for len(indexes[rOuter]) == 0 {
-				rOuter = int(rand.Int63n(int64(repFactor)))
+			r := int(rand.Int63n(int64(indexRange)))
+			for missingIndex[r] == true {
+				r = int(rand.Int63n(int64(indexRange)))
 			}
-			rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
-			missedRepIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
-			indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
-				indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
-			indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
+			missingIndex[r] = true
+		}
+		for key := range missingIndex {
+			outerIndex := key / fileinfo.TotalBlock
+			innerIndex := key%fileinfo.TotalBlock + 1
+			missedRepIndexes[outerIndex][innerIndex] = struct{}{}
 		}
 
 		result := RepRecover(fileinfo, missedDataIndexes, missedRepIndexes)
 		avgResult.RecoverRate += result.RecoverRate
 		avgResult.DownloadParity += result.DownloadParity
-		avgResult.SuccessCnt += result.SuccessCnt
+		avgResult.PartialSuccessCnt += result.PartialSuccessCnt
+		if result.PartialSuccessCnt == fileinfo.TotalBlock {
+			avgResult.FullSuccessCnt++
+		}
 	}
 	avgResult.RecoverRate = avgResult.RecoverRate / float32(iteration)
 	avgResult.DownloadParity = avgResult.DownloadParity / uint(iteration)
-	avgResult.SuccessCnt = avgResult.SuccessCnt / iteration
-
+	avgResult.PartialSuccessCnt = avgResult.PartialSuccessCnt / iteration
+	avgResult.FullSuccessCnt = avgResult.FullSuccessCnt / float32(iteration)
 	return avgResult
 }
 
