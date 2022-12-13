@@ -1,7 +1,9 @@
 package performance
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
@@ -73,13 +75,13 @@ func (getter *RecoverGetter) GetData(index int) ([]byte, error) {
 		return nil, err
 	}
 
-	// /* get the data, mask to represent the data loss */
-	// if getter.DataFilter != nil {
-	// 	if _, ok = getter.DataFilter[index]; ok {
-	// 		err := xerrors.Errorf("no data exists")
-	// 		return nil, err
-	// 	}
-	// }
+	/* get the data, mask to represent the data loss */
+	if getter.DataFilter != nil {
+		if _, ok = getter.DataFilter[index]; ok {
+			err := xerrors.Errorf("no data exists")
+			return nil, err
+		}
+	}
 
 	// read from cache
 	if data, ok := getter.cache[cid]; ok {
@@ -89,14 +91,14 @@ func (getter *RecoverGetter) GetData(index int) ([]byte, error) {
 }
 
 func (getter *RecoverGetter) GetParity(index int, strand int) ([]byte, error) {
-	// if index < 1 || index > getter.BlockNum {
-	// 	err := xerrors.Errorf("invalid index")
-	// 	return nil, err
-	// }
-	// if strand < 0 || strand > len(getter.Parity) {
-	// 	err := xerrors.Errorf("invalid strand")
-	// 	return nil, err
-	// }
+	if index < 1 || index > getter.BlockNum {
+		err := xerrors.Errorf("invalid index")
+		return nil, err
+	}
+	if strand < 0 || strand > len(getter.Parity) {
+		err := xerrors.Errorf("invalid strand")
+		return nil, err
+	}
 
 	/* Get the target CID of the block */
 	cid := getter.Parity[strand][index-1]
@@ -128,28 +130,29 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	successCount := 0
 	var walker func(string)
 	walker = func(cid string) {
-		chunk, _, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
+		chunk, hasRepaired, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
 		if err != nil {
 			return
 		}
 
 		// upload missing chunk back to the network if allowed
-		// if hasRepaired {
-		// 	// TODO: does trimming zero always works?
-		// 	chunk = bytes.Trim(chunk, "\x00")
-		// 	uploadCID, err := conn.AddRawData(chunk)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// 	if uploadCID != cid {
-		// 		return
-		// 	}
-		// }
+		if hasRepaired {
+			// TODO: does trimming zero always works?
+			chunk = bytes.Trim(chunk, "\x00")
+			// 	uploadCID, err := conn.AddRawData(chunk)
+			// 	if err != nil {
+			// 		return
+			// 	}
+			// 	if uploadCID != cid {
+			// 		return
+			// 	}
+		}
 		successCount++
 
 		// unmarshal and iterate
 		dagNode, err := conn.GetDagNodeFromRawBytes(chunk)
 		if err != nil {
+			fmt.Println(err)
 			return
 		}
 		links := dagNode.Links()
