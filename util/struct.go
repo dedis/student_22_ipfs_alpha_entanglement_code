@@ -34,3 +34,14 @@ func (m *SafeMap) Get(key int) (val string, ok bool) {
 	val, ok = m.unsafeMap[key]
 	return
 }
+
+func (m *SafeMap) GetAll() map[int]string {
+	m.RLock()
+	defer m.RUnlock()
+
+	mymap := make(map[int]string)
+	for key, value := range m.unsafeMap {
+		mymap[key] = value
+	}
+	return mymap
+}

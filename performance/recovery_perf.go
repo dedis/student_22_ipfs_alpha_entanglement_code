@@ -1,13 +1,11 @@
 package performance
 
 import (
-	"bytes"
 	"encoding/json"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
-	"sync"
 
 	"golang.org/x/xerrors"
 )
@@ -22,21 +20,49 @@ type RecoverGetter struct {
 
 	BlockNum int
 
-	*sync.Mutex
 	cache map[string][]byte
 }
 
-func CreateRecoverGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) *RecoverGetter {
+func CreateRecoverGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) (*RecoverGetter, error) {
 	indexToDataCIDMap := *util.NewSafeMap()
 	indexToDataCIDMap.AddReverseMap(CIDIndexMap)
-	return &RecoverGetter{
+	getter := RecoverGetter{
 		IPFSConnector:   connector,
 		DataIndexCIDMap: indexToDataCIDMap,
 		Parity:          parityCIDs,
 		BlockNum:        len(CIDIndexMap),
 		cache:           map[string][]byte{},
-		Mutex:           &sync.Mutex{},
 	}
+
+	err := getter.InitCache()
+
+	return &getter, err
+}
+
+func (getter *RecoverGetter) InitCache() error {
+	// init data
+	for _, dataCID := range getter.DataIndexCIDMap.GetAll() {
+		// download from IPFS and store in cache
+		data, err := getter.GetRawBlock(dataCID)
+		if err != nil {
+			return err
+		}
+		getter.cache[dataCID] = data
+	}
+
+	// init parities
+	for _, parities := range getter.Parity {
+		for _, parityCID := range parities {
+			// download from IPFS and store in cache
+			data, err := getter.GetFileToMem(parityCID)
+			if err != nil {
+				return err
+			}
+			getter.cache[parityCID] = data
+		}
+	}
+
+	return nil
 }
 
 func (getter *RecoverGetter) GetData(index int) ([]byte, error) {
@@ -47,38 +73,30 @@ func (getter *RecoverGetter) GetData(index int) ([]byte, error) {
 		return nil, err
 	}
 
-	/* get the data, mask to represent the data loss */
-	if getter.DataFilter != nil {
-		if _, ok = getter.DataFilter[index]; ok {
-			err := xerrors.Errorf("no data exists")
-			return nil, err
-		}
-	}
+	// /* get the data, mask to represent the data loss */
+	// if getter.DataFilter != nil {
+	// 	if _, ok = getter.DataFilter[index]; ok {
+	// 		err := xerrors.Errorf("no data exists")
+	// 		return nil, err
+	// 	}
+	// }
 
 	// read from cache
-	getter.Lock()
-	defer getter.Unlock()
 	if data, ok := getter.cache[cid]; ok {
 		return data, nil
 	}
-	// download from IPFS and store in cache
-	data, err := getter.GetRawBlock(cid)
-	if err != nil {
-		return nil, err
-	}
-	getter.cache[cid] = data
-	return data, nil
+	return nil, xerrors.Errorf("no such data")
 }
 
 func (getter *RecoverGetter) GetParity(index int, strand int) ([]byte, error) {
-	if index < 1 || index > getter.BlockNum {
-		err := xerrors.Errorf("invalid index")
-		return nil, err
-	}
-	if strand < 0 || strand > len(getter.Parity) {
-		err := xerrors.Errorf("invalid strand")
-		return nil, err
-	}
+	// if index < 1 || index > getter.BlockNum {
+	// 	err := xerrors.Errorf("invalid index")
+	// 	return nil, err
+	// }
+	// if strand < 0 || strand > len(getter.Parity) {
+	// 	err := xerrors.Errorf("invalid strand")
+	// 	return nil, err
+	// }
 
 	/* Get the target CID of the block */
 	cid := getter.Parity[strand][index-1]
@@ -92,18 +110,10 @@ func (getter *RecoverGetter) GetParity(index int, strand int) ([]byte, error) {
 	}
 
 	// read from cache
-	getter.Lock()
-	defer getter.Unlock()
 	if data, ok := getter.cache[cid]; ok {
 		return data, nil
 	}
-	// download from IPFS and store in cache
-	data, err := getter.GetFileToMem(cid)
-	if err != nil {
-		return nil, err
-	}
-	getter.cache[cid] = data
-	return data, nil
+	return nil, xerrors.Errorf("no such parity")
 }
 
 var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter) (result PerfResult) {
@@ -118,23 +128,23 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	successCount := 0
 	var walker func(string)
 	walker = func(cid string) {
-		chunk, hasRepaired, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
+		chunk, _, err := lattice.GetChunk(metaData.DataCIDIndexMap[cid])
 		if err != nil {
 			return
 		}
 
 		// upload missing chunk back to the network if allowed
-		if hasRepaired {
-			// TODO: does trimming zero always works?
-			chunk = bytes.Trim(chunk, "\x00")
-			uploadCID, err := conn.AddRawData(chunk)
-			if err != nil {
-				return
-			}
-			if uploadCID != cid {
-				return
-			}
-		}
+		// if hasRepaired {
+		// 	// TODO: does trimming zero always works?
+		// 	chunk = bytes.Trim(chunk, "\x00")
+		// 	uploadCID, err := conn.AddRawData(chunk)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	if uploadCID != cid {
+		// 		return
+		// 	}
+		// }
 		successCount++
 
 		// unmarshal and iterate
@@ -185,7 +195,10 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (res
 	}
 
 	// create getter
-	getter := CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+	getter, err := CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
 
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, alpha)

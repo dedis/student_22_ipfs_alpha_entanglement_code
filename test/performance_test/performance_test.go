@@ -27,7 +27,7 @@ func Test_Only_Data_Loss(t *testing.T) {
 	var accuRate float32
 	var accuOverhead float32
 
-	onlyData := func(missNum int, fileinfo performance.FileInfo) func(*testing.T) {
+	onlyData := func(missNum int, fileinfo performance.FileInfo, try int) func(*testing.T) {
 		return func(*testing.T) {
 			conn, err := ipfsconnector.CreateIPFSConnector(0)
 			require.NoError(t, err)
@@ -40,27 +40,31 @@ func Test_Only_Data_Loss(t *testing.T) {
 			require.NoError(t, err)
 
 			// create getter
-			getter := performance.CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+			getter, err := performance.CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+			require.NoError(t, err)
 
-			indexes := make([]int, fileinfo.TotalBlock)
-			for i := 0; i < fileinfo.TotalBlock; i++ {
-				indexes[i] = i
-			}
-			missedIndexes := map[int]struct{}{}
-			for i := 0; i < missNum; i++ {
-				r := int(rand.Int63n(int64(len(indexes))))
-				missedIndexes[indexes[r]] = struct{}{}
-				indexes[r], indexes[len(indexes)-1] = indexes[len(indexes)-1], indexes[r]
-				indexes = indexes[:len(indexes)-1]
-			}
-			getter.DataFilter = missedIndexes
+			for i := 0; i < try; i++ {
+				indexes := make([]int, fileinfo.TotalBlock)
+				for i := 0; i < fileinfo.TotalBlock; i++ {
+					indexes[i] = i
+				}
+				missedIndexes := map[int]struct{}{}
+				for i := 0; i < missNum; i++ {
+					r := int(rand.Int63n(int64(len(indexes))))
+					missedIndexes[indexes[r]] = struct{}{}
+					indexes[r], indexes[len(indexes)-1] = indexes[len(indexes)-1], indexes[r]
+					indexes = indexes[:len(indexes)-1]
+				}
+				getter.DataFilter = missedIndexes
 
-			result := performance.Recovery(fileinfo, metaData, getter)
-			t.Logf("Data Recovery Rate: %f", result.RecoverRate)
-			t.Logf("Parity Overhead: %f", result.DownloadParity)
-			t.Logf("Successfully Downloaded Block: %d", result.PartialSuccessCnt)
-			accuRate += result.RecoverRate
-			accuOverhead += result.DownloadParity
+				result := performance.Recovery(fileinfo, metaData, getter)
+				t.Logf("Data Recovery Rate: %f", result.RecoverRate)
+				t.Logf("Parity Overhead: %f", result.DownloadParity)
+				t.Logf("Successfully Downloaded Block: %d", result.PartialSuccessCnt)
+				accuRate += result.RecoverRate
+				accuOverhead += result.DownloadParity
+			}
+
 		}
 	}
 
@@ -70,9 +74,8 @@ func Test_Only_Data_Loss(t *testing.T) {
 	for i := 0; i <= performance.InfoMap[key].TotalBlock; i++ {
 		accuRate = 0
 		accuOverhead = 0
-		for j := 0; j < try; j++ {
-			t.Run(fmt.Sprintf("test_%d_%d", i, j), onlyData(i, performance.InfoMap[key]))
-		}
+		t.Run(fmt.Sprintf("test_%d", i), onlyData(i, performance.InfoMap[key], try))
+
 		allRates = append(allRates, fmt.Sprintf("%.4f", accuRate/float32(try)))
 		allOverhead = append(allOverhead, fmt.Sprintf("%.4f", float32(accuOverhead)/(float32(try))))
 	}
