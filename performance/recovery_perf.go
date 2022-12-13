@@ -175,7 +175,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	return result
 }
 
-var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (result PerfResult) {
+var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNodes int) (result PerfResult) {
 	avgResult := PerfResult{}
 
 	conn, err := ipfsconnector.CreateIPFSConnector(0)
@@ -220,16 +220,44 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (res
 		for i := 0; i < alpha; i++ {
 			missedParityIndexes[i] = map[int]struct{}{}
 		}
-		for i := 0; i < missNum; i++ {
-			rOuter := int(rand.Int63n(int64(alpha)))
-			for len(indexes[rOuter]) == 0 {
-				rOuter = int(rand.Int63n(int64(alpha)))
+		if nbNodes == 0 {
+			for i := 0; i < missNum; i++ {
+				rOuter := int(rand.Int63n(int64(alpha)))
+				for len(indexes[rOuter]) == 0 {
+					rOuter = int(rand.Int63n(int64(alpha)))
+				}
+				rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
+				missedParityIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
+				indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
+					indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
+				indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
 			}
-			rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
-			missedParityIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
-			indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
-				indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
-			indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
+		} else {
+			curIndex := 0
+			nodeIndexes := make([][]int, 10)
+			for i := 0; i < fileinfo.TotalBlock; i++ {
+				for j := 0; j < 3; j++ {
+					nodeIndexes[curIndex] = append(nodeIndexes[curIndex], j*fileinfo.TotalBlock+i)
+					curIndex = (curIndex + 1) % nbNodes
+				}
+			}
+
+			missedNodes := map[int]bool{}
+			for i := 0; i < missNum; i++ {
+				idx := int(rand.Int63n(int64(nbNodes)))
+				for missedNodes[idx] == true {
+					idx = int(rand.Int63n(int64(nbNodes)))
+				}
+				missedNodes[idx] = true
+			}
+
+			for key := range missedNodes {
+				for _, v := range nodeIndexes[key] {
+					j := v / fileinfo.TotalBlock
+					i := v % fileinfo.TotalBlock
+					missedParityIndexes[j][i+1] = struct{}{}
+				}
+			}
 		}
 		getter.DataFilter = missedDataIndexes
 		getter.ParityFilter = missedParityIndexes
@@ -256,5 +284,5 @@ func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResu
 	}
 
 	missNum := int(float32(fileinfo.TotalBlock*alpha) * missPercent)
-	return RecoverWithFilter(fileinfo, missNum, iteration)
+	return RecoverWithFilter(fileinfo, missNum, iteration, 0)
 }
