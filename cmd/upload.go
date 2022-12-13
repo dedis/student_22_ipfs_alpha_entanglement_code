@@ -75,35 +75,29 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		parityPinResult[k] = make([]bool, blockNum)
 	}
 
-	var waitGroupUpload sync.WaitGroup
 	var waitGroupPin sync.WaitGroup
-	for parityBlock := range parityChan {
-		waitGroupUpload.Add(1)
-		waitGroupPin.Add(1)
+	for block := range parityChan {
 
-		go func(block entangler.EntangledBlock) {
-			defer waitGroupUpload.Done()
+		// upload file to IPFS network
+		blockCID, err := c.AddFileFromMem(block.Data)
+		if err == nil {
+			parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
+		}
 
-			// upload file to IPFS network
-			blockCID, err := c.AddFileFromMem(block.Data)
-			if err == nil {
-				parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
-			}
+		// pin file in cluster
+		if clusterErr == nil {
+			waitGroupPin.Add(1)
 
-			// pin file in cluster
-			if clusterErr == nil {
-				go func() {
-					defer waitGroupPin.Done()
+			go func() {
+				defer waitGroupPin.Done()
 
-					err := c.AddPin(blockCID, 1)
-					if err == nil {
-						parityPinResult[block.Strand][block.LeftBlockIndex-1] = true
-					}
-				}()
-			}
-		}(parityBlock)
+				err := c.AddPin(blockCID, 1)
+				if err == nil {
+					parityPinResult[block.Strand][block.LeftBlockIndex-1] = true
+				}
+			}()
+		}
 	}
-	waitGroupUpload.Wait()
 
 	// check if all parity blocks are added successfully
 	for k := 0; k < alpha; k++ {
