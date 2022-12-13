@@ -19,6 +19,14 @@ type Metadata struct {
 	ParityCIDs      [][]string
 }
 
+type PerfResult struct {
+	PartialSuccessCnt int
+	FullSuccessCnt    float32
+	RecoverRate       float32
+	DownloadParity    float32
+	Err               error
+}
+
 var InfoMap = map[string]FileInfo{
 	"20MB": {
 		FileCID:    "QmY4ShSx49sYCCZxpqQWMcbjv2hv4yWWp2yprrk53DPqvT",

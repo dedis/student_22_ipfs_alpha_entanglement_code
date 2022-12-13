@@ -1,12 +1,16 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
+	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/performance"
 	"math/rand"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func max(a float32, b float32) float32 {
@@ -21,10 +25,23 @@ func Test_Only_Data_Loss(t *testing.T) {
 	var allRates []string
 	var allOverhead []string
 	var accuRate float32
-	var accuOverhead uint
+	var accuOverhead float32
 
 	onlyData := func(missNum int, fileinfo performance.FileInfo) func(*testing.T) {
 		return func(*testing.T) {
+			conn, err := ipfsconnector.CreateIPFSConnector(0)
+			require.NoError(t, err)
+
+			// download metafile
+			data, err := conn.GetFileToMem(fileinfo.MetaCID)
+			require.NoError(t, err)
+			var metaData performance.Metadata
+			err = json.Unmarshal(data, &metaData)
+			require.NoError(t, err)
+
+			// create getter
+			getter := performance.CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+
 			indexes := make([]int, fileinfo.TotalBlock)
 			for i := 0; i < fileinfo.TotalBlock; i++ {
 				indexes[i] = i
@@ -36,9 +53,11 @@ func Test_Only_Data_Loss(t *testing.T) {
 				indexes[r], indexes[len(indexes)-1] = indexes[len(indexes)-1], indexes[r]
 				indexes = indexes[:len(indexes)-1]
 			}
-			result := performance.Recovery(fileinfo, missedIndexes, nil)
+			getter.DataFilter = missedIndexes
+
+			result := performance.Recovery(fileinfo, metaData, getter)
 			t.Logf("Data Recovery Rate: %f", result.RecoverRate)
-			t.Logf("Parity Overhead: %d", result.DownloadParity)
+			t.Logf("Parity Overhead: %f", result.DownloadParity)
 			t.Logf("Successfully Downloaded Block: %d", result.PartialSuccessCnt)
 			accuRate += result.RecoverRate
 			accuOverhead += result.DownloadParity
@@ -75,67 +94,77 @@ func Test_Only_Parity_Loss(t *testing.T) {
 	var partialRates []string
 	var fullRates []string
 	var allOverhead []string
-	var accuPartialRate float32
-	var accuFullRate float32
-	var accuOverhead uint
+	// var accuPartialRate float32
+	// var accuFullRate float32
+	// var accuOverhead uint
 
-	onlyParity := func(missNum int, fileinfo performance.FileInfo) func(*testing.T) {
+	onlyParity := func(missNum int, fileinfo performance.FileInfo, iteration int) func(*testing.T) {
 		return func(*testing.T) {
-			indexes := make([][]int, 3)
-			for i := range indexes {
-				indexes[i] = make([]int, fileinfo.TotalBlock)
-			}
-			for i := range indexes {
-				for j := 0; j < fileinfo.TotalBlock; j++ {
-					indexes[i][j] = j + 1
-				}
-			}
-
-			/* All data block is missing */
-			missedDataIndexes := map[int]struct{}{}
-			for i := 0; i < fileinfo.TotalBlock; i++ {
-				missedDataIndexes[i] = struct{}{}
-			}
-
-			/* Some parity block is missing */
-			missedParityIndexes := []map[int]struct{}{{}, {}, {}}
-			for i := 0; i < missNum; i++ {
-				rOuter := int(rand.Int63n(int64(3)))
-				for len(indexes[rOuter]) == 0 {
-					rOuter = int(rand.Int63n(int64(3)))
-				}
-				rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
-				missedParityIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
-				indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
-					indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
-				indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
-			}
-			result := performance.Recovery(fileinfo, missedDataIndexes, missedParityIndexes)
-			t.Logf("Data Recovery Rate: %f", result.RecoverRate)
-			t.Logf("Parity Overhead: %d", result.DownloadParity)
-			t.Logf("Successfully Downloaded Block: %d", result.PartialSuccessCnt)
-			accuPartialRate += result.RecoverRate
-			// Only count overhead with success blocks
-			accuOverhead += result.DownloadParity
-			if result.PartialSuccessCnt == fileinfo.TotalBlock {
-				accuFullRate++
-			}
+			result := performance.RecoverWithFilter(fileinfo, missNum, iteration)
+			partialRates = append(partialRates, fmt.Sprintf("%.4f", result.RecoverRate))
+			fullRates = append(fullRates, fmt.Sprintf("%.4f", result.FullSuccessCnt))
+			allOverhead = append(allOverhead, fmt.Sprintf("%.4f", result.DownloadParity))
 		}
 	}
+
+	// onlyParity := func(missNum int, fileinfo performance.FileInfo) func(*testing.T) {
+	// 	return func(*testing.T) {
+	// 		indexes := make([][]int, 3)
+	// 		for i := range indexes {
+	// 			indexes[i] = make([]int, fileinfo.TotalBlock)
+	// 		}
+	// 		for i := range indexes {
+	// 			for j := 0; j < fileinfo.TotalBlock; j++ {
+	// 				indexes[i][j] = j + 1
+	// 			}
+	// 		}
+
+	// 		/* All data block is missing */
+	// 		missedDataIndexes := map[int]struct{}{}
+	// 		for i := 0; i < fileinfo.TotalBlock; i++ {
+	// 			missedDataIndexes[i] = struct{}{}
+	// 		}
+
+	// 		/* Some parity block is missing */
+	// 		missedParityIndexes := []map[int]struct{}{{}, {}, {}}
+	// 		for i := 0; i < missNum; i++ {
+	// 			rOuter := int(rand.Int63n(int64(3)))
+	// 			for len(indexes[rOuter]) == 0 {
+	// 				rOuter = int(rand.Int63n(int64(3)))
+	// 			}
+	// 			rInner := int(rand.Int63n(int64(len(indexes[rOuter]))))
+	// 			missedParityIndexes[rOuter][indexes[rOuter][rInner]] = struct{}{}
+	// 			indexes[rOuter][rInner], indexes[rOuter][len(indexes[rOuter])-1] =
+	// 				indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
+	// 			indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
+	// 		}
+	// 		result := performance.Recovery(fileinfo, missedDataIndexes, missedParityIndexes)
+	// 		t.Logf("Data Recovery Rate: %f", result.RecoverRate)
+	// 		t.Logf("Parity Overhead: %d", result.DownloadParity)
+	// 		t.Logf("Successfully Downloaded Block: %d", result.PartialSuccessCnt)
+	// 		accuPartialRate += result.RecoverRate
+	// 		// Only count overhead with success blocks
+	// 		accuOverhead += result.DownloadParity
+	// 		if result.PartialSuccessCnt == fileinfo.TotalBlock {
+	// 			accuFullRate++
+	// 		}
+	// 	}
+	// }
 
 	key := "25MB"
 	try := 100
 	rand.Seed(time.Now().UnixNano())
 	for i := 0; i <= performance.InfoMap[key].TotalBlock*3; i++ {
-		accuPartialRate = 0
-		accuFullRate = 0
-		accuOverhead = 0
+		// accuPartialRate = 0
+		// accuFullRate = 0
+		// accuOverhead = 0
 		for j := 0; j < try; j++ {
-			t.Run(fmt.Sprintf("test_%d_%d", i, j), onlyParity(i, performance.InfoMap[key]))
+			t.Run(fmt.Sprintf("test_%d_%d", i, j), onlyParity(i, performance.InfoMap[key], try))
+			// t.Run(fmt.Sprintf("test_%d_%d", i, j), onlyParity(i, performance.InfoMap[key]))
 		}
-		partialRates = append(partialRates, fmt.Sprintf("%.4f", accuPartialRate/float32(try)))
-		fullRates = append(fullRates, fmt.Sprintf("%.4f", accuFullRate/float32(try)))
-		allOverhead = append(allOverhead, fmt.Sprintf("%.4f", float32(accuOverhead)/float32(try)))
+		// partialRates = append(partialRates, fmt.Sprintf("%.4f", accuPartialRate/float32(try)))
+		// fullRates = append(fullRates, fmt.Sprintf("%.4f", accuFullRate/float32(try)))
+		// allOverhead = append(allOverhead, fmt.Sprintf("%.4f", float32(accuOverhead)/float32(try)))
 		time.Sleep(time.Second * 5)
 		fmt.Println("Success Partial Recovery Rate: [" + strings.Join(partialRates, ",") + "]")
 		fmt.Println("Success Full Recovery Rate: [" + strings.Join(fullRates, ",") + "]")

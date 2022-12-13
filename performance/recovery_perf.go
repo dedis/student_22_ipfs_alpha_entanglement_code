@@ -5,41 +5,110 @@ import (
 	"encoding/json"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
+	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
+	"sync"
 
 	"golang.org/x/xerrors"
 )
 
-type PerfResult struct {
-	PartialSuccessCnt int
-	FullSuccessCnt    float32
-	RecoverRate       float32
-	DownloadParity    uint
-	Err               error
+type RecoverGetter struct {
+	entangler.BlockGetter
+	*ipfsconnector.IPFSConnector
+	DataIndexCIDMap util.SafeMap
+	DataFilter      map[int]struct{}
+	Parity          [][]string
+	ParityFilter    []map[int]struct{}
+
+	BlockNum int
+
+	*sync.Mutex
+	cache map[string][]byte
 }
 
-var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingParity []map[int]struct{}) (result PerfResult) {
-	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	if err != nil {
-		return PerfResult{Err: err}
+func CreateRecoverGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) *RecoverGetter {
+	indexToDataCIDMap := *util.NewSafeMap()
+	indexToDataCIDMap.AddReverseMap(CIDIndexMap)
+	return &RecoverGetter{
+		IPFSConnector:   connector,
+		DataIndexCIDMap: indexToDataCIDMap,
+		Parity:          parityCIDs,
+		BlockNum:        len(CIDIndexMap),
+		cache:           map[string][]byte{},
+		Mutex:           &sync.Mutex{},
+	}
+}
+
+func (getter *RecoverGetter) GetData(index int) ([]byte, error) {
+	/* Get the target CID of the block */
+	cid, ok := getter.DataIndexCIDMap.Get(index)
+	if !ok {
+		err := xerrors.Errorf("invalid index")
+		return nil, err
 	}
 
-	// download metafile
-	data, err := conn.GetFileToMem(fileinfo.MetaCID)
-	if err != nil {
-		return PerfResult{Err: err}
-	}
-	var metaData Metadata
-	err = json.Unmarshal(data, &metaData)
-	if err != nil {
-		return PerfResult{Err: err}
+	/* get the data, mask to represent the data loss */
+	if getter.DataFilter != nil {
+		if _, ok = getter.DataFilter[index]; ok {
+			err := xerrors.Errorf("no data exists")
+			return nil, err
+		}
 	}
 
+	// read from cache
+	getter.Lock()
+	defer getter.Unlock()
+	if data, ok := getter.cache[cid]; ok {
+		return data, nil
+	}
+	// download from IPFS and store in cache
+	data, err := getter.GetRawBlock(cid)
+	if err != nil {
+		return nil, err
+	}
+	getter.cache[cid] = data
+	return data, nil
+}
+
+func (getter *RecoverGetter) GetParity(index int, strand int) ([]byte, error) {
+	if index < 1 || index > getter.BlockNum {
+		err := xerrors.Errorf("invalid index")
+		return nil, err
+	}
+	if strand < 0 || strand > len(getter.Parity) {
+		err := xerrors.Errorf("invalid strand")
+		return nil, err
+	}
+
+	/* Get the target CID of the block */
+	cid := getter.Parity[strand][index-1]
+
+	/* Get the parity, mask to represent the parity loss */
+	if getter.ParityFilter != nil && len(getter.ParityFilter) > strand && getter.ParityFilter[strand] != nil {
+		if _, ok := getter.ParityFilter[strand][index]; ok {
+			err := xerrors.Errorf("no parity exists")
+			return nil, err
+		}
+	}
+
+	// read from cache
+	getter.Lock()
+	defer getter.Unlock()
+	if data, ok := getter.cache[cid]; ok {
+		return data, nil
+	}
+	// download from IPFS and store in cache
+	data, err := getter.GetFileToMem(cid)
+	if err != nil {
+		return nil, err
+	}
+	getter.cache[cid] = data
+	return data, nil
+}
+
+var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter) (result PerfResult) {
+	conn := getter.IPFSConnector
 	chunkNum := len(metaData.DataCIDIndexMap)
-	// create getter
-	getter := ipfsconnector.CreateIPFSGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
-	getter.DataFilter = missingData
-	getter.ParityFilter = missingParity
 
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 1)
@@ -91,13 +160,33 @@ var Recovery = func(fileinfo FileInfo, missingData map[int]struct{}, missingPari
 			}
 		}
 	}
-	result.DownloadParity = downloadParity
+	result.DownloadParity = float32(downloadParity)
 
 	return result
 }
 
 var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (result PerfResult) {
 	avgResult := PerfResult{}
+
+	conn, err := ipfsconnector.CreateIPFSConnector(0)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+
+	// download metafile
+	data, err := conn.GetFileToMem(fileinfo.MetaCID)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+	var metaData Metadata
+	err = json.Unmarshal(data, &metaData)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+
+	// create getter
+	getter := CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
+
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, alpha)
 		for i := range indexes {
@@ -129,8 +218,10 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (res
 				indexes[rOuter][len(indexes[rOuter])-1], indexes[rOuter][rInner]
 			indexes[rOuter] = indexes[rOuter][:len(indexes[rOuter])-1]
 		}
+		getter.DataFilter = missedDataIndexes
+		getter.ParityFilter = missedParityIndexes
 
-		result := Recovery(fileinfo, missedDataIndexes, missedParityIndexes)
+		result := Recovery(fileinfo, metaData, getter)
 		avgResult.RecoverRate += result.RecoverRate
 		avgResult.DownloadParity += result.DownloadParity
 		avgResult.PartialSuccessCnt += result.PartialSuccessCnt
@@ -139,7 +230,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int) (res
 		}
 	}
 	avgResult.RecoverRate = avgResult.RecoverRate / float32(iteration)
-	avgResult.DownloadParity = avgResult.DownloadParity / uint(iteration)
+	avgResult.DownloadParity = avgResult.DownloadParity / float32(iteration)
 	avgResult.PartialSuccessCnt = avgResult.PartialSuccessCnt / iteration
 	avgResult.FullSuccessCnt = avgResult.FullSuccessCnt / float32(iteration)
 	return avgResult

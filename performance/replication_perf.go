@@ -2,10 +2,11 @@ package performance
 
 import (
 	"encoding/json"
-	"golang.org/x/xerrors"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
+
+	"golang.org/x/xerrors"
 )
 
 type RepGetter struct {
@@ -14,6 +15,8 @@ type RepGetter struct {
 	DataIndexCIDMap util.SafeMap
 	DataFilter      map[int]struct{}
 	RepFilter       []map[int]struct{}
+
+	cache map[string][]byte
 }
 
 func CreateRepGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int) *RepGetter {
@@ -22,6 +25,7 @@ func CreateRepGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[str
 	return &RepGetter{
 		IPFSConnector:   connector,
 		DataIndexCIDMap: indexToDataCIDMap,
+		cache:           map[string][]byte{},
 	}
 }
 
@@ -53,30 +57,24 @@ func (getter *RepGetter) GetData(index int) (data []byte, err error) {
 			}
 		}
 	}
+
+	// read from cache
+	if data, ok := getter.cache[cid]; ok {
+		return data, nil
+	}
+	// download from IPFS and store in cache
 	data, err = getter.GetRawBlock(cid)
-	return data, err
+	if err != nil {
+		return nil, err
+	}
+	getter.cache[cid] = data
+	return data, nil
 }
 
-var RepRecover = func(fileinfo FileInfo, missingData map[int]struct{}, missingReplication []map[int]struct{}) (result PerfResult) {
-	conn, err := ipfsconnector.CreateIPFSConnector(0)
-	if err != nil {
-		return PerfResult{Err: err}
-	}
+var RepRecover = func(fileinfo FileInfo,
+	metaData Metadata, getter *RepGetter) (result PerfResult) {
 
-	// download metafile
-	data, err := conn.GetFileToMem(fileinfo.MetaCID)
-	if err != nil {
-		return PerfResult{Err: err}
-	}
-	var metaData Metadata
-	err = json.Unmarshal(data, &metaData)
-	if err != nil {
-		return PerfResult{Err: err}
-	}
-
-	getter := CreateRepGetter(conn, metaData.DataCIDIndexMap)
-	getter.DataFilter = missingData
-	getter.RepFilter = missingReplication
+	conn := getter.IPFSConnector
 
 	successCount := 0
 	var walker func(string)
@@ -106,6 +104,26 @@ var RepRecover = func(fileinfo FileInfo, missingData map[int]struct{}, missingRe
 
 var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, iteration int) PerfResult {
 	avgResult := PerfResult{}
+
+	conn, err := ipfsconnector.CreateIPFSConnector(0)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+
+	// download metafile
+	data, err := conn.GetFileToMem(fileinfo.MetaCID)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+	var metaData Metadata
+	err = json.Unmarshal(data, &metaData)
+	if err != nil {
+		return PerfResult{Err: err}
+	}
+
+	// create getter
+	getter := CreateRepGetter(conn, metaData.DataCIDIndexMap)
+
 	for b := 0; b < iteration; b++ {
 		indexes := make([][]int, repFactor)
 		for i := range indexes {
@@ -131,7 +149,7 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 		missingIndex := make(map[int]bool)
 		for i := 0; i < missNum; i++ {
 			r := int(rand.Int63n(int64(indexRange)))
-			for missingIndex[r] == true {
+			for missingIndex[r] {
 				r = int(rand.Int63n(int64(indexRange)))
 			}
 			missingIndex[r] = true
@@ -141,8 +159,10 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 			innerIndex := key%fileinfo.TotalBlock + 1
 			missedRepIndexes[outerIndex][innerIndex] = struct{}{}
 		}
+		getter.DataFilter = missedDataIndexes
+		getter.RepFilter = missedRepIndexes
 
-		result := RepRecover(fileinfo, missedDataIndexes, missedRepIndexes)
+		result := RepRecover(fileinfo, metaData, getter)
 		avgResult.RecoverRate += result.RecoverRate
 		avgResult.DownloadParity += result.DownloadParity
 		avgResult.PartialSuccessCnt += result.PartialSuccessCnt
@@ -151,7 +171,7 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 		}
 	}
 	avgResult.RecoverRate = avgResult.RecoverRate / float32(iteration)
-	avgResult.DownloadParity = avgResult.DownloadParity / uint(iteration)
+	avgResult.DownloadParity = avgResult.DownloadParity / float32(iteration)
 	avgResult.PartialSuccessCnt = avgResult.PartialSuccessCnt / iteration
 	avgResult.FullSuccessCnt = avgResult.FullSuccessCnt / float32(iteration)
 	return avgResult
