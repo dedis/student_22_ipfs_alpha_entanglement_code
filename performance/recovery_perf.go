@@ -248,7 +248,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 			missedNodes := map[int]bool{}
 			for i := 0; i < missNum; i++ {
 				idx := int(rand.Int63n(int64(nbNodes)))
-				for missedNodes[idx] == true {
+				for missedNodes[idx] {
 					idx = int(rand.Int63n(int64(nbNodes)))
 				}
 				missedNodes[idx] = true

@@ -69,34 +69,23 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	// store parity blocks one by one
 	parityCIDs := make([][]string, alpha)
-	parityPinResult := make([][]bool, alpha)
 	for k := 0; k < alpha; k++ {
 		parityCIDs[k] = make([]string, blockNum)
-		parityPinResult[k] = make([]bool, blockNum)
 	}
 
-	var waitGroupPin sync.WaitGroup
+	var waitGroupAdd sync.WaitGroup
 	for block := range parityChan {
+		waitGroupAdd.Add(1)
 
-		// upload file to IPFS network
-		blockCID, err := c.AddFileFromMem(block.Data)
-		if err == nil {
-			parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
-		}
+		go func(block entangler.EntangledBlock) {
+			defer waitGroupAdd.Done()
 
-		// pin file in cluster
-		if clusterErr == nil {
-			waitGroupPin.Add(1)
-
-			go func() {
-				defer waitGroupPin.Done()
-
-				err := c.AddPin(blockCID, 1)
-				if err == nil {
-					parityPinResult[block.Strand][block.LeftBlockIndex-1] = true
-				}
-			}()
-		}
+			// upload file to IPFS network
+			blockCID, err := c.AddFileFromMem(block.Data)
+			if err == nil {
+				parityCIDs[block.Strand][block.LeftBlockIndex-1] = blockCID
+			}
+		}(block)
 	}
 
 	// check if all parity blocks are added successfully
@@ -136,24 +125,34 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		return rootCID, metaCID, nil, clusterErr
 	}
 
-	pinResult = func() (err error) {
+	var waitGroupPin sync.WaitGroup
+
+	// pin file in cluster
+	waitGroupPin.Add(1)
+	var PinErr error
+	go func() {
+		defer waitGroupPin.Done()
+
 		err = c.AddPin(metaCID, 0)
 		if err != nil {
-			return xerrors.Errorf("could not pin metadata: %s", err)
+			PinErr = xerrors.Errorf("could not pin metadata: %s", err)
+			return
 		}
 
-		waitGroupPin.Wait()
-		// check if all parity blocks are pinned successfully
-		for k := 0; k < alpha; k++ {
-			for i, success := range parityPinResult[k] {
-				if !success {
-					return xerrors.Errorf("could not pin parity %d on strand %d\n", i, k)
+		for i := 0; i < alpha; i++ {
+			for j := 0; j < len(parityCIDs[0]); j++ {
+				err := c.AddPin(parityCIDs[i][j], 1)
+				if err != nil {
+					PinErr = xerrors.Errorf("could not pin parity %s: %s", parityCIDs[i][j], err)
+					return
 				}
 			}
-			util.LogPrint("Finish pinning entanglement %d", k)
 		}
+	}()
 
-		return nil
+	pinResult = func() (err error) {
+		waitGroupPin.Wait()
+		return PinErr
 	}
 
 	return rootCID, metaCID, pinResult, nil
