@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var repFactor = 8
+var repFactor = 7
 
 func Test_Rep_Only_Parity_Loss(t *testing.T) {
 	var partialRates []string
@@ -31,9 +31,9 @@ func Test_Rep_Only_Parity_Loss(t *testing.T) {
 		fmt.Println("Success Partial Recovery Rate: [" + strings.Join(partialRates, ",") + "]")
 		fmt.Println("Success Full Recovery Rate: [" + strings.Join(fullRates, ",") + "]")
 		if i%repFactor == 0 {
-			i += 2
-		} else {
 			i += 3
+		} else {
+			i += 2
 		}
 	}
 	// Rep = 3
