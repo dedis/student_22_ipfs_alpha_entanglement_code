@@ -168,7 +168,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	var downloadParity uint = 0
 	for _, parities := range lattice.ParityBlocks {
 		for _, parity := range parities {
-			if len(parity.Data) > 0 {
+			if parity.IsAvailable() {
 				downloadParity++
 			}
 		}
