@@ -28,6 +28,11 @@ type PerfResult struct {
 }
 
 var InfoMap = map[string]FileInfo{
+	"5MB": {
+		FileCID:    "QmPhZDvWNwiLjYdMc5Kpijdgiza9ZC1qWFyUFcu6hZVx4w",
+		MetaCID:    "QmWePBkj7UbisSXn3KzB24Uyh5EnpPm7SP2Y2o3suq8fMA",
+		TotalBlock: 21,
+	},
 	"20MB": {
 		FileCID:    "QmY4ShSx49sYCCZxpqQWMcbjv2hv4yWWp2yprrk53DPqvT",
 		MetaCID:    "QmeZmAZ7TiFRT7kqoV4oynn1STKwo8sbiwRnLsM21eZMCc",
@@ -37,5 +42,10 @@ var InfoMap = map[string]FileInfo{
 		FileCID:    "QmNkkcM5tFMqWxdrekyZoJnF5QxWKZnqYdJFBUj1jssRhb",
 		MetaCID:    "QmcnV4N1umtzBRk5fC6e8TYkTKhgFkwqxN6LjPZvTworwZ",
 		TotalBlock: 101,
+	},
+	"125MB": {
+		FileCID:    "QmRLtPBz7u4V4Pz7qU5ofArnGrEugSsHAMSER51EYRvzoe",
+		MetaCID:    "QmQMW8UQyvATTRYdosw9gWyyq1xqEi2Kqv9YV4wycFrF3p",
+		TotalBlock: 504,
 	},
 }
