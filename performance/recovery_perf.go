@@ -123,7 +123,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	chunkNum := len(metaData.DataCIDIndexMap)
 
 	// create lattice
-	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 1)
+	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 2)
 	lattice.Init()
 
 	// download & recover file from IPFS
@@ -237,7 +237,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 			}
 		} else {
 			curIndex := 0
-			nodeIndexes := make([][]int, 10)
+			nodeIndexes := make([][]int, nbNodes)
 			for i := 0; i < fileinfo.TotalBlock; i++ {
 				for j := 0; j < 3; j++ {
 					nodeIndexes[curIndex] = append(nodeIndexes[curIndex], j*fileinfo.TotalBlock+i)
