@@ -168,7 +168,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	var downloadParity uint = 0
 	for _, parities := range lattice.ParityBlocks {
 		for _, parity := range parities {
-			if len(parity.Data) > 0 {
+			if parity.IsAvailable() {
 				downloadParity++
 			}
 		}
@@ -248,7 +248,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 			missedNodes := map[int]bool{}
 			for i := 0; i < missNum; i++ {
 				idx := int(rand.Int63n(int64(nbNodes)))
-				for missedNodes[idx] == true {
+				for missedNodes[idx] {
 					idx = int(rand.Int63n(int64(nbNodes)))
 				}
 				missedNodes[idx] = true

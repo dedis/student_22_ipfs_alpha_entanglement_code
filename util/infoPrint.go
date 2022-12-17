@@ -23,8 +23,16 @@ func Enable_LogPrint() {
 	Global_LogPrint = true
 }
 
+func Disable_LogPrint() {
+	Global_LogPrint = false
+}
+
 func Enable_InfoPrint() {
 	Global_InfoPrint = true
+}
+
+func Disable_InfoPrint() {
+	Global_InfoPrint = false
 }
 
 func InfoPrint(format string, a ...interface{}) (int, error) {

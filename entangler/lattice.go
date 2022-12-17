@@ -158,7 +158,7 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 		if downloadErr == nil {
 			repairSuccess = true
 			if block.IsParity {
-				util.LogPrint(util.Magenta("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
+				util.LogPrint(util.Magenta("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
 				return
 			}
 			util.LogPrint("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)

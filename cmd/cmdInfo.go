@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"ipfs-alpha-entanglement-code/performance"
+	"ipfs-alpha-entanglement-code/util"
 	"math/rand"
 	"os"
 	"time"
@@ -85,6 +86,9 @@ func (c *Client) AddDownloadCmd() {
 }
 
 func (c *Client) AddPerformanceCmd() {
+	util.Disable_LogPrint()
+	util.Disable_InfoPrint()
+
 	var rootCmd = &cobra.Command{Use: "perf"}
 
 	var fileCase string
