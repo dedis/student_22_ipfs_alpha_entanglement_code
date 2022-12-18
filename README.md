@@ -11,13 +11,22 @@ We need more mechanisms than IPFS alone to achieve the goal that we have. In thi
 1. A small group of friends/families/colleagues are trying to hold some files, such that they would be able to access all these files at all times.
 2. A large group of strangers tried to form a community, where each other tries to help each other to make their file always available. This case might be a bit unrealistic, since the security guarantee of the IPFS Cluster is weak, and there is no incentive for each individual to provide this service. This is the ultimate goal of this project, the future works of this project might involve some aspects of trying to solve these issues.
 
+## IPFS Community Framework
 
-## To run the program
+The figure below illustrates the IPFS Community framework. By interacting with the underlying IPFS node and IPFS Cluster node, it enables users to increase their file reliability and availability even their local nodes go offline. 
 
-### Prerequisite
+<p align="center">
+  <img src="readme_figures/ipfs_community.png"/>
+</p>
+
+
+
+## Run the Program
+
+#### Prerequisite
 You have to have at least one IPFS node running on your computer (either from IPFS daemon, docker, or ...), which allows you to upload and download from the IPFS network. You could also set up an IPFS Cluster, using the `docker-compose.yml` in the directory. You could change the number of cluster peers you want to support inside the file.
 
-### Commands
+#### Commands
 
 To uploade files with entanglement (alpha = 3, s = 5, p = 5):
 ```
