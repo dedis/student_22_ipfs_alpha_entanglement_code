@@ -6,7 +6,7 @@ import different_file_size
 
 
 def main():
-    save = False
+    save = True
 
     # ONLY DATA MISSING
     only_data.overhead(save)
@@ -17,6 +17,7 @@ def main():
     data_and_parity.best_effort(save)
 
     # DIFFERENT FILE SIZE
+    different_file_size.overhead(save)
     different_file_size.recovery_likelihood(save)
     different_file_size.best_effort(save)
 
