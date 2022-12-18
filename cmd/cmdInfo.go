@@ -31,6 +31,8 @@ func (c *Client) AddUploadCmd() {
 		Long:  "Upload a file to IPFS with optional entanglement",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			util.Enable_LogPrint()
+
 			cid, metaCID, pinResult, err := c.Upload(args[0], alpha, s, p)
 			if len(cid) > 0 {
 				fmt.Println("Finish adding file to IPFS. File CID: ", cid)
@@ -69,6 +71,8 @@ func (c *Client) AddDownloadCmd() {
 		Long:  "Download a file from IPFS. Do recovery if data is missing",
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			util.Enable_LogPrint()
+
 			out, err := c.Download(args[0], path, opt)
 			if err != nil {
 				fmt.Println("Error:", err)
@@ -86,9 +90,6 @@ func (c *Client) AddDownloadCmd() {
 }
 
 func (c *Client) AddPerformanceCmd() {
-	util.Disable_LogPrint()
-	util.Disable_InfoPrint()
-
 	var rootCmd = &cobra.Command{Use: "perf"}
 
 	var fileCase string
@@ -100,6 +101,9 @@ func (c *Client) AddPerformanceCmd() {
 		Long:  "Performance test for block recovery during download from IPFS",
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
+			util.Disable_LogPrint()
+			util.Disable_InfoPrint()
+
 			rand.Seed(time.Now().UnixNano())
 			result := performance.Perf_Recovery(fileCase, lossPercent, iteration)
 			if result.Err != nil {

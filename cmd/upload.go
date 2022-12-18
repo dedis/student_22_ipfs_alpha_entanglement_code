@@ -87,6 +87,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 			}
 		}(block)
 	}
+	waitGroupAdd.Wait()
 
 	// check if all parity blocks are added successfully
 	for k := 0; k < alpha; k++ {
