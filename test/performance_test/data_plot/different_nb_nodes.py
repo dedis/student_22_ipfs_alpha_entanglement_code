@@ -73,11 +73,11 @@ def overhead(save):
     x_50 = [i / (len(y_50) - 1) * 100 for i in range(len(y_50))]
     x_100 = [i / (len(y_100) - 1) * 100 for i in range(len(y_100))]
 
-    plt.plot(x_10, y_10, label="Node=10")
-    plt.plot(x_20, y_20, label="Node=20")
-    plt.plot(x_50, y_50, label="Node=50")
+    plt.plot(x_10, y_10, label="#Node=10")
+    plt.plot(x_20, y_20, label="#Node=20")
+    plt.plot(x_50, y_50, label="#Node=50")
     # plt.plot(x_100, y_100, label="Node=100")
-    plt.plot(x_inf, y_inf, label="Node=No. of Blocks")
+    plt.plot(x_inf, y_inf, label="#Node=#Blocks")
 
     plt.xlim([0, 100])
     plt.ylim([0, 3])
@@ -141,11 +141,11 @@ def best_effort(save):
     x_50 = [i / (len(y_50) - 1) * 100 for i in range(len(y_50))]
     x_100 = [i / (len(y_100) - 1) * 100 for i in range(len(y_100))]
 
-    plt.plot(x_10, y_10, label="Node=10")
-    plt.plot(x_20, y_20, label="Node=20")
-    plt.plot(x_50, y_50, label="Node=50")
+    plt.plot(x_10, y_10, label="#Node=10")
+    plt.plot(x_20, y_20, label="#Node=20")
+    plt.plot(x_50, y_50, label="#Node=50")
     # plt.plot(x_100, y_100, label="Node=100")
-    plt.plot(x_inf, y_inf, label="Node=No. of Blocks")
+    plt.plot(x_inf, y_inf, label="#Node=#Blocks")
 
     plt.xlim([0, 100])
     plt.xlabel('Percentage of Node Loss')
@@ -208,11 +208,11 @@ def recovery_likelihood(save):
     x_50 = [i / (len(y_50) - 1) * 100 for i in range(len(y_50))]
     x_100 = [i / (len(y_100) - 1) * 100 for i in range(len(y_100))]
 
-    plt.plot(x_10, y_10, label="Node=10")
-    plt.plot(x_20, y_20, label="Node=20")
-    plt.plot(x_50, y_50, label="Node=50")
+    plt.plot(x_10, y_10, label="#Node=10")
+    plt.plot(x_20, y_20, label="#Node=20")
+    plt.plot(x_50, y_50, label="#Node=50")
     # plt.plot(x_100, y_100, label="Node=100")
-    plt.plot(x_inf, y_inf, label="Node=No. of Blocks")
+    plt.plot(x_inf, y_inf, label="#Node=#Blocks")
 
     plt.xlim([0, 100])
     plt.xlabel('Percentage of Node Loss')

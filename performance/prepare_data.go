@@ -33,6 +33,11 @@ var InfoMap = map[string]FileInfo{
 		MetaCID:    "QmWePBkj7UbisSXn3KzB24Uyh5EnpPm7SP2Y2o3suq8fMA",
 		TotalBlock: 21,
 	},
+	"10MB": {
+		FileCID:    "QmSTGE8KfWZDirBir7ytmuCtN5Rnm2Lcq968twB3HQpenu",
+		MetaCID:    "QmSyWExmLviRpgezGVed3CW6paCtdbHmVdJBhD5W7MhV8D",
+		TotalBlock: 41,
+	},
 	"20MB": {
 		FileCID:    "QmY4ShSx49sYCCZxpqQWMcbjv2hv4yWWp2yprrk53DPqvT",
 		MetaCID:    "QmeZmAZ7TiFRT7kqoV4oynn1STKwo8sbiwRnLsM21eZMCc",
@@ -42,6 +47,11 @@ var InfoMap = map[string]FileInfo{
 		FileCID:    "QmNkkcM5tFMqWxdrekyZoJnF5QxWKZnqYdJFBUj1jssRhb",
 		MetaCID:    "QmcnV4N1umtzBRk5fC6e8TYkTKhgFkwqxN6LjPZvTworwZ",
 		TotalBlock: 101,
+	},
+	"50MB": {
+		FileCID:    "QmfTf3Eom9FChQEYb7Kj84wdVgAuz6Ra7mJX5bFd78rc1k",
+		MetaCID:    "QmacYZC4Qhnzuodj9Ai41yerV2x3PgWyYW1ynCAqJGbvh1",
+		TotalBlock: 203,
 	},
 	"75MB": {
 		FileCID:    "QmQ3Q48bMp1XC1LCRxDdkHUxAab9D4UVUfLz5PYTEHFB42",

@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import only_data
 import data_and_parity
 import different_nb_nodes
