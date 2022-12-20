@@ -11,12 +11,14 @@ import (
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
 func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, pinResult func() error, err error) {
+	// init ipfs connector. Fail the whole process if no connection built
 	err = c.InitIPFSConnector()
 	if err != nil {
 		return "", "", nil, err
 	}
 
-	// add original file to ipfs
+	/* add original file to ipfs */
+
 	rootCID, err = c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
 	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", rootCID, path)
@@ -26,9 +28,11 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		return rootCID, "", nil, nil
 	}
 
+	// init cluster connector. Delay th fail after all uploading to IPFS finishes
 	clusterErr := c.InitIPFSClusterConnector()
 
-	// get merkle tree from IPFS and flatten the tree
+	/* get merkle tree from IPFS and flatten the tree */
+
 	root, err := c.GetMerkleTree(rootCID, &entangler.Lattice{})
 	if err != nil {
 		return rootCID, "", nil, xerrors.Errorf("could not read merkle tree: %s", err)
@@ -42,10 +46,12 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	util.InfoPrint("\n")
 	util.LogPrint("Finish reading and flattening file's merkle tree from IPFS")
 
-	// generate entanglement
+	/* generate entanglement */
+
 	dataChan := make(chan []byte, blockNum)
 	parityChan := make(chan entangler.EntangledBlock, alpha*blockNum)
 
+	// start the entangler to read from pipline
 	tangler := entangler.NewEntangler(alpha, s, p)
 	go func() {
 		err = tangler.Entangle(dataChan, parityChan)
@@ -60,14 +66,14 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 			nodeData, err := node.Data()
 			if err != nil {
 				return
-				// return rootCID, "", xerrors.Errorf("could not load chunk data from IPFS: %s", err)
 			}
 			dataChan <- nodeData
 		}
 		close(dataChan)
 	}()
 
-	// store parity blocks one by one
+	/* store parity blocks one by one */
+
 	parityCIDs := make([][]string, alpha)
 	for k := 0; k < alpha; k++ {
 		parityCIDs[k] = make([]string, blockNum)
@@ -99,7 +105,8 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		util.LogPrint("Finish uploading entanglement %d", k)
 	}
 
-	// Store Metatdata
+	/* Store Metatdata */
+
 	cidMap := make(map[string]int)
 	for i, node := range nodes {
 		cidMap[node.CID] = i + 1
@@ -126,9 +133,9 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		return rootCID, metaCID, nil, clusterErr
 	}
 
-	var waitGroupPin sync.WaitGroup
+	/* pin files in cluster */
 
-	// pin file in cluster
+	var waitGroupPin sync.WaitGroup
 	waitGroupPin.Add(1)
 	var PinErr error
 	go func() {

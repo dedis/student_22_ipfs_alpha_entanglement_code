@@ -24,7 +24,8 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 		return "", err
 	}
 
-	// direct downloading if no metafile provided
+	/* direct downloading if no metafile provided */
+
 	if len(option.MetaCID) == 0 {
 		fmt.Println(err)
 		// try to down original file using given rootCID (i.e. no metafile)
@@ -37,7 +38,8 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 		return "", nil
 	}
 
-	// download metafile
+	/* download metafile */
+
 	// TODO: lazy downloading?
 	metaData, err := c.GetMetaData(option.MetaCID)
 	if err != nil {
@@ -45,8 +47,10 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 	}
 	util.LogPrint("Finish downloading metaFile")
 
-	chunkNum := len(metaData.DataCIDIndexMap)
+	/* create lattice */
+
 	// create getter
+	chunkNum := len(metaData.DataCIDIndexMap)
 	getter := ipfsconnector.CreateIPFSGetter(c.IPFSConnector, metaData.DataCIDIndexMap, metaData.ParityCIDs)
 	if len(option.DataFilter) > 0 {
 		getter.DataFilter = make(map[int]struct{}, len(option.DataFilter))
@@ -54,13 +58,13 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 			getter.DataFilter[index] = struct{}{}
 		}
 	}
-
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 2)
 	lattice.Init()
 	util.LogPrint("Finish generating lattice")
 
-	// download & recover file from IPFS
+	/* download & recover file from IPFS */
+
 	data := []byte{}
 	repaired := false
 	var walker func(string) error
@@ -112,7 +116,8 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 		return "", err
 	}
 
-	// write to file in the given path
+	/* write to file in the given path */
+
 	if len(path) == 0 {
 		out = rootCID
 	} else {

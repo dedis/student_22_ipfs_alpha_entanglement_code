@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// RecoverGetter handles connection to IPFS and mimics data & parity loss
 type RecoverGetter struct {
 	entangler.BlockGetter
 	*ipfsconnector.IPFSConnector
@@ -135,17 +136,9 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 			return
 		}
 
-		// upload missing chunk back to the network if allowed
+		// remote the padding zero to ensure unmarshal correctness
 		if hasRepaired {
-			// TODO: does trimming zero always works?
 			chunk = bytes.Trim(chunk, "\x00")
-			// 	uploadCID, err := conn.AddRawData(chunk)
-			// 	if err != nil {
-			// 		return
-			// 	}
-			// 	if uploadCID != cid {
-			// 		return
-			// 	}
 		}
 		successCount++
 
@@ -169,6 +162,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 	for _, parities := range lattice.ParityBlocks {
 		for _, parity := range parities {
 			if parity.IsAvailable() && !parity.IsRepaired() {
+				// only count downloead parities as overhead (exclude recovered parities)
 				downloadParity++
 			}
 		}
@@ -181,6 +175,7 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNodes int) (result PerfResult) {
 	avgResult := PerfResult{}
 
+	// create IPFS connector
 	conn, err := ipfsconnector.CreateIPFSConnector(0)
 	if err != nil {
 		return PerfResult{Err: err}
@@ -203,6 +198,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 		return PerfResult{Err: err}
 	}
 
+	// generate random parity loss and repeat tests
 	for i := 0; i < iteration; i++ {
 		indexes := make([][]int, alpha)
 		for i := range indexes {
@@ -281,6 +277,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 }
 
 func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResult {
+	// check the validity of test case
 	fileinfo, ok := InfoMap[fileCase]
 	if !ok {
 		return PerfResult{Err: xerrors.Errorf("invalid test case")}
