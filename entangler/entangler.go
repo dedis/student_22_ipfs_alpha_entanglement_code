@@ -249,33 +249,33 @@ func (e *Entangler) getChainStartIndexes(index int) (indexes []int) {
 
 // getBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
 // See details in alpha-entanglement-code paper (https://ieeexplore.ieee.org/document/8416482)
-func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
-	if e.Alpha > 3 {
-		util.ThrowError("alpha should equal 3")
-	}
+// func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
+// 	if e.Alpha > 3 {
+// 		util.ThrowError("alpha should equal 3")
+// 	}
 
-	// d_i is tangled with p_{h,i}
-	pos := e.getPositionCategory(index)
-	var h, rh, lh int
-	switch pos {
-	case Top:
-		h = index - e.S
-		rh = index - e.S*e.P + (e.S*e.S - 1)
-		lh = index - (e.S - 1)
-	case Central:
-		h = index - e.S
-		rh = index - (e.S + 1)
-		lh = index - (e.S - 1)
-	case Bottom:
-		h = index - e.S
-		rh = index - (e.S + 1)
-		lh = index - e.S*e.P + (e.S-1)*(e.S-1)
-	}
+// 	// d_i is tangled with p_{h,i}
+// 	pos := e.getPositionCategory(index)
+// 	var h, rh, lh int
+// 	switch pos {
+// 	case Top:
+// 		h = index - e.S
+// 		rh = index - e.S*e.P + (e.S*e.S - 1)
+// 		lh = index - (e.S - 1)
+// 	case Central:
+// 		h = index - e.S
+// 		rh = index - (e.S + 1)
+// 		lh = index - (e.S - 1)
+// 	case Bottom:
+// 		h = index - e.S
+// 		rh = index - (e.S + 1)
+// 		lh = index - e.S*e.P + (e.S-1)*(e.S-1)
+// 	}
 
-	indexes = []int{h, rh, lh}
+// 	indexes = []int{h, rh, lh}
 
-	return indexes
-}
+// 	return indexes
+// }
 
 // getForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
 // See details in alpha-entanglement-code paper (https://ieeexplore.ieee.org/document/8416482)

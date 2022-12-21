@@ -87,7 +87,7 @@ func (l *Lattice) getBlock(index int) (block *Block) {
 func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error) {
 	rid := l.getRequestID()
 	if allowDepth > 0 {
-		data, err := l.getDataFromBlockSequential(rid, block, allowDepth)
+		data, err := l.getDataFromBlockSequential(block, rid, allowDepth)
 		if err == nil {
 			return data, nil
 		}
@@ -96,45 +96,12 @@ func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	return l.getDataFromBlockParallel(ctx, rid, block)
+	return l.getDataFromBlockParallel(ctx, block, rid)
 }
 
 // getDataFromBlockSequential recovers a block with missing chunk using the lattice (single thread)
-func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth uint) (data []byte, err error) {
-	recursiveRecover := func(block *Block, allowDepth uint) {
-		var repairSuccess = false
-		var modifyState = true
-		defer func() {
-			if modifyState {
-				block.FinishRepair(repairSuccess)
-			}
-		}()
-
-		// if already has data or already visited
-		if !block.StartRepair(context.Background(), rid) {
-			modifyState = false
-			return
-		}
-
-		// download data
-		downloadErr := l.downloadBlock(block)
-		if downloadErr == nil {
-			repairSuccess = true
-			printRecoverStatus(false, DownloadSuccess, block)
-			return
-		}
-		printRecoverStatus(false, DownloadFail, block)
-
-		// repair data
-		success := l.sequentialRepair(block, rid, allowDepth)
-		if success {
-			repairSuccess = true
-			printRecoverStatus(false, RepairSuccess, block)
-		} else {
-			printRecoverStatus(false, RepairFail, block)
-		}
-	}
-	recursiveRecover(block, allowDepth)
+func (l *Lattice) getDataFromBlockSequential(block *Block, rid uint, allowDepth uint) (data []byte, err error) {
+	l.sequentialRecoverHelper(block, rid, allowDepth)
 
 	data, err = block.GetData()
 	if err != nil {
@@ -146,100 +113,9 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 }
 
 // getDataFromBlockParallel recovers a block with missing chunk using the lattice (multiple threads)
-func (l *Lattice) getDataFromBlockParallel(ctx context.Context, rid uint, block *Block) (data []byte, err error) {
-	var recursiveRecover func(context.Context, uint, *Block, chan bool)
-	recursiveRecover = func(ctx context.Context, rid uint, block *Block, channel chan bool) {
-		var repairSuccess = false
-		var modifyState = true
-		defer func() {
-			if modifyState {
-				block.FinishRepair(repairSuccess)
-			}
-			channel <- true
-		}()
-
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			// if already has data or already visited
-			if !block.StartRepair(ctx, rid) {
-				modifyState = false
-				return
-			}
-
-			// download data
-			err := l.downloadBlock(block)
-			if err == nil {
-				repairSuccess = true
-				printRecoverStatus(true, DownloadSuccess, block)
-				return
-			}
-			printRecoverStatus(true, DownloadFail, block)
-
-			// repair data
-			pairs := block.GetRecoverPairs()
-			if len(pairs) == 0 {
-				printRecoverStatus(true, RepairFail, block)
-				return
-			}
-			finish := make(chan bool)
-			counter := 0
-			for _, mypair := range pairs {
-				util.InfoPrintf(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\n"+
-					"Right - Index: %d, Parity: %t, Strand: %d\n\n"),
-					mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
-					mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
-				go func(pair *BlockPair) {
-					// tell the caller current func is finished
-					success := false
-					defer func() { finish <- success }()
-
-					resultChan := make(chan bool, 2)
-					go recursiveRecover(ctx, rid, pair.Left, resultChan)
-					go recursiveRecover(ctx, rid, pair.Right, resultChan)
-
-					<-resultChan
-					<-resultChan
-					leftChunk, err := pair.Left.GetData()
-					if err != nil {
-						return
-					}
-					// special case: wrap on itself
-					if pair.Left == pair.Right {
-						block.SetData(leftChunk, true)
-						success = true
-						return
-					}
-					rightChunk, err := pair.Right.GetData()
-					if err != nil {
-						return
-					}
-
-					if block.Recover(leftChunk, rightChunk) == nil {
-						success = true
-					}
-				}(mypair)
-			}
-			// wait until one recover success, or all routine finishes
-			for {
-				success := <-finish
-				if success {
-					repairSuccess = true
-					printRecoverStatus(true, RepairSuccess, block)
-					return
-				}
-				counter++
-				if counter >= len(pairs) {
-					printRecoverStatus(true, RepairFail, block)
-					return
-				}
-			}
-		}
-	}
-
+func (l *Lattice) getDataFromBlockParallel(ctx context.Context, block *Block, rid uint) (data []byte, err error) {
 	myChannel := make(chan bool, 1)
-	recursiveRecover(ctx, rid, block, myChannel)
+	l.parallelRecoverHelper(ctx, block, rid, myChannel)
 	<-myChannel
 	data, err = block.GetData()
 	if err != nil {
@@ -328,7 +204,7 @@ func (l *Lattice) getRequestID() uint {
 	return id
 }
 
-// sequentialRepair repairs a single block using single thread
+// sequentialRepair repairs a block using single thread
 func (l *Lattice) sequentialRepair(block *Block, rid uint, allowDepth uint) bool {
 	if allowDepth == 0 {
 		return false
@@ -337,13 +213,19 @@ func (l *Lattice) sequentialRepair(block *Block, rid uint, allowDepth uint) bool
 	if len(pairs) == 0 {
 		return false
 	}
+
 	for _, mypair := range pairs {
-		leftChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Left, allowDepth-1)
+		util.InfoPrintf(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\n"+
+			"Right - Index: %d, Parity: %t, Strand: %d\n\n"),
+			mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
+			mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
+
+		leftChunk, RepairErr := l.getDataFromBlockSequential(mypair.Left, rid, allowDepth-1)
 		if RepairErr != nil {
 			continue
 		}
 
-		rightChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Right, allowDepth-1)
+		rightChunk, RepairErr := l.getDataFromBlockSequential(mypair.Right, rid, allowDepth-1)
 		if RepairErr != nil {
 			continue
 		}
@@ -353,6 +235,144 @@ func (l *Lattice) sequentialRepair(block *Block, rid uint, allowDepth uint) bool
 		}
 	}
 	return false
+}
+
+// sequentialRecoverHelper is a helper function to recursively do the sequential recovery
+func (l *Lattice) sequentialRecoverHelper(block *Block, rid uint, allowDepth uint) {
+	var repairSuccess = false
+	var modifyState = true
+	defer func() {
+		if modifyState {
+			block.FinishRepair(repairSuccess)
+		}
+	}()
+
+	// if already has data or already visited
+	if !block.StartRepair(context.Background(), rid) {
+		modifyState = false
+		return
+	}
+
+	// download data
+	downloadErr := l.downloadBlock(block)
+	if downloadErr == nil {
+		repairSuccess = true
+		printRecoverStatus(false, DownloadSuccess, block)
+		return
+	}
+	printRecoverStatus(false, DownloadFail, block)
+
+	// repair data
+	success := l.sequentialRepair(block, rid, allowDepth)
+	if success {
+		repairSuccess = true
+		printRecoverStatus(false, RepairSuccess, block)
+	} else {
+		printRecoverStatus(false, RepairFail, block)
+	}
+}
+
+// parallelRepair repairs a block using muti-threads
+func (l *Lattice) parallelRepair(ctx context.Context, block *Block, rid uint) bool {
+	pairs := block.GetRecoverPairs()
+	if len(pairs) == 0 {
+		return false
+	}
+
+	finish := make(chan bool)
+	counter := 0
+	for _, mypair := range pairs {
+		util.InfoPrintf(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\n"+
+			"Right - Index: %d, Parity: %t, Strand: %d\n\n"),
+			mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
+			mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
+
+		go func(pair *BlockPair) {
+			// tell the caller current func is finished
+			success := false
+			defer func() { finish <- success }()
+
+			resultChan := make(chan bool, 2)
+			go l.parallelRecoverHelper(ctx, pair.Left, rid, resultChan)
+			go l.parallelRecoverHelper(ctx, pair.Right, rid, resultChan)
+
+			<-resultChan
+			<-resultChan
+			leftChunk, err := pair.Left.GetData()
+			if err != nil {
+				return
+			}
+
+			// special case: wrap on itself
+			if pair.Left == pair.Right {
+				block.SetData(leftChunk, true)
+				success = true
+				return
+			}
+
+			rightChunk, err := pair.Right.GetData()
+			if err != nil {
+				return
+			}
+
+			if block.Recover(leftChunk, rightChunk) == nil {
+				success = true
+			}
+		}(mypair)
+	}
+	// wait until one recover success, or all routine finishes
+	for {
+		success := <-finish
+		if success {
+			return true
+		}
+		counter++
+		if counter >= len(pairs) {
+			printRecoverStatus(true, RepairFail, block)
+			return false
+		}
+	}
+}
+
+// parallelRecoverHelper is a helper function to recursively do the parallel recovery
+func (l *Lattice) parallelRecoverHelper(ctx context.Context, block *Block, rid uint, channel chan bool) {
+	var repairSuccess = false
+	var modifyState = true
+	defer func() {
+		if modifyState {
+			block.FinishRepair(repairSuccess)
+		}
+		channel <- true
+	}()
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		// if already has data or already visited
+		if !block.StartRepair(ctx, rid) {
+			modifyState = false
+			return
+		}
+
+		// download data
+		err := l.downloadBlock(block)
+		if err == nil {
+			repairSuccess = true
+			printRecoverStatus(true, DownloadSuccess, block)
+			return
+		}
+		printRecoverStatus(true, DownloadFail, block)
+
+		// repair data
+		success := l.parallelRepair(ctx, block, rid)
+		if success {
+			repairSuccess = true
+			printRecoverStatus(false, RepairSuccess, block)
+		} else {
+			printRecoverStatus(false, RepairFail, block)
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
