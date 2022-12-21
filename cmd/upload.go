@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"ipfs-alpha-entanglement-code/entangler"
+	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
 	"sync"
 
@@ -10,7 +11,9 @@ import (
 )
 
 // Upload uploads the original file, generates and uploads the entanglement of that file
-func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, metaCID string, pinResult func() error, err error) {
+func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string,
+	metaCID string, pinResult func() error, err error) {
+
 	// init ipfs connector. Fail the whole process if no connection built
 	err = c.InitIPFSConnector()
 	if err != nil {
@@ -22,14 +25,10 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	rootCID, err = c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
 	util.LogPrintf("Finish adding file to IPFS with CID %s. File path: %s", rootCID, path)
-
 	if alpha < 1 {
 		// expect no entanglement
 		return rootCID, "", nil, nil
 	}
-
-	// init cluster connector. Delay th fail after all uploading to IPFS finishes
-	clusterErr := c.InitIPFSClusterConnector()
 
 	/* get merkle tree from IPFS and flatten the tree */
 
@@ -48,13 +47,60 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	/* generate entanglement */
 
+	parityCIDs, err := c.generateEntanglementAndUpload(alpha, s, p, nodes)
+	if err != nil {
+		return rootCID, "", nil, err
+	}
+
+	/* Store Metatdata */
+
+	cidMap := make(map[string]int)
+	for i, node := range nodes {
+		cidMap[node.CID] = i + 1
+	}
+	metaData := Metadata{
+		Alpha:           alpha,
+		S:               s,
+		P:               p,
+		RootCID:         rootCID,
+		DataCIDIndexMap: cidMap,
+		ParityCIDs:      parityCIDs,
+	}
+	rawMetadata, err := json.Marshal(metaData)
+	if err != nil {
+		return rootCID, "", nil, xerrors.Errorf("could not marshal metadata: %s", err)
+	}
+	metaCID, err = c.AddFileFromMem(rawMetadata)
+	if err != nil {
+		return rootCID, "", nil, xerrors.Errorf("could not upload metadata: %s", err)
+	}
+	util.LogPrintf("File CID: %s. MetaFile CID: %s", rootCID, metaCID)
+
+	// init cluster connector. Delay th fail after all uploading to IPFS finishes
+	clusterErr := c.InitIPFSClusterConnector()
+	if clusterErr != nil {
+		return rootCID, metaCID, nil, clusterErr
+	}
+
+	/* pin files in cluster */
+
+	pinResult = c.pinMetadataAndParities(metaCID, parityCIDs)
+
+	return rootCID, metaCID, pinResult, nil
+}
+
+// generateLattice takes a slice of flattened tree as well as alpha, s, p to perform alpha entanglement
+func (c *Client) generateEntanglementAndUpload(alpha int, s int, p int,
+	nodes []*ipfsconnector.TreeNode) ([][]string, error) {
+
+	blockNum := len(nodes)
 	dataChan := make(chan []byte, blockNum)
 	parityChan := make(chan entangler.EntangledBlock, alpha*blockNum)
 
 	// start the entangler to read from pipline
 	tangler := entangler.NewEntangler(alpha, s, p)
 	go func() {
-		err = tangler.Entangle(dataChan, parityChan)
+		err := tangler.Entangle(dataChan, parityChan)
 		if err != nil {
 			panic(xerrors.Errorf("could not generate entanglement: %s", err))
 		}
@@ -99,55 +145,31 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	for k := 0; k < alpha; k++ {
 		for i, parity := range parityCIDs[k] {
 			if len(parity) == 0 {
-				return rootCID, "", nil, xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
+				return nil, xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
 			}
 		}
 		util.LogPrintf("Finish uploading entanglement %d", k)
 	}
 
-	/* Store Metatdata */
+	return parityCIDs, nil
+}
 
-	cidMap := make(map[string]int)
-	for i, node := range nodes {
-		cidMap[node.CID] = i + 1
-	}
-	metaData := Metadata{
-		Alpha:           alpha,
-		S:               s,
-		P:               p,
-		RootCID:         rootCID,
-		DataCIDIndexMap: cidMap,
-		ParityCIDs:      parityCIDs,
-	}
-	rawMetadata, err := json.Marshal(metaData)
-	if err != nil {
-		return rootCID, "", nil, xerrors.Errorf("could not marshal metadata: %s", err)
-	}
-	metaCID, err = c.AddFileFromMem(rawMetadata)
-	if err != nil {
-		return rootCID, "", nil, xerrors.Errorf("could not upload metadata: %s", err)
-	}
-
-	util.LogPrintf("File CID: %s. MetaFile CID: %s", rootCID, metaCID)
-	if clusterErr != nil {
-		return rootCID, metaCID, nil, clusterErr
-	}
-
-	/* pin files in cluster */
-
+// pinMetadataAndParities pins the metadata and parities in IPFS cluster in the non-blocking way
+// User could use the returned function to wait and check if there is any error
+func (c *Client) pinMetadataAndParities(metaCID string, parityCIDs [][]string) func() error {
 	var waitGroupPin sync.WaitGroup
 	waitGroupPin.Add(1)
 	var PinErr error
 	go func() {
 		defer waitGroupPin.Done()
 
-		err = c.IPFSClusterConnector.AddPin(metaCID, 0)
+		err := c.IPFSClusterConnector.AddPin(metaCID, 0)
 		if err != nil {
 			PinErr = xerrors.Errorf("could not pin metadata: %s", err)
 			return
 		}
 
-		for i := 0; i < alpha; i++ {
+		for i := 0; i < len(parityCIDs); i++ {
 			for j := 0; j < len(parityCIDs[0]); j++ {
 				err := c.IPFSClusterConnector.AddPin(parityCIDs[i][j], 1)
 				if err != nil {
@@ -158,10 +180,10 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		}
 	}()
 
-	pinResult = func() (err error) {
+	pinResult := func() (err error) {
 		waitGroupPin.Wait()
 		return PinErr
 	}
 
-	return rootCID, metaCID, pinResult, nil
+	return pinResult
 }

@@ -51,9 +51,9 @@ func LogPrintf(format string, a ...interface{}) {
 	paths := strings.Split(file, "/")
 	callerPackage := paths[len(paths)-2]
 	if ok {
-		format = fmt.Sprintf(White("[%s]: %s\n"), callerPackage, format)
+		format = fmt.Sprintf(White("[%s]: %s"), callerPackage, format)
 		log.Printf(format, a...)
 		return
 	}
-	log.Printf(format+"\n", a...)
+	log.Printf(format, a...)
 }
