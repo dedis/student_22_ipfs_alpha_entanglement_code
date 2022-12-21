@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-var Default_Port int = 9094
+var DefaultPort = 9094
 
-type IPFSClusterConnector struct {
+type Connector struct {
 	url        string
 	selfID     string
 	peerIDs    []string
@@ -18,11 +18,11 @@ type IPFSClusterConnector struct {
 }
 
 // CreateIPFSClusterConnector is the constructor of IPFSClusterConnector
-func CreateIPFSClusterConnector(port int) (*IPFSClusterConnector, error) {
+func CreateIPFSClusterConnector(port int) (*Connector, error) {
 	if port == 0 {
-		port = Default_Port
+		port = DefaultPort
 	}
-	conn := IPFSClusterConnector{url: fmt.Sprintf("http://127.0.0.1:%d", port)}
+	conn := Connector{url: fmt.Sprintf("http://127.0.0.1:%d", port)}
 	_, err := conn.PeerInfo()
 	if err != nil {
 		return nil, err
@@ -35,13 +35,14 @@ func CreateIPFSClusterConnector(port int) (*IPFSClusterConnector, error) {
 }
 
 // PeerInfo list the info about the cluster peers
-func (c *IPFSClusterConnector) PeerInfo() (string, error) {
+func (c *Connector) PeerInfo() (string, error) {
 	/* Return the connected peer info
 	For the moment, only returns the name of the connected peer */
 	resp, err := http.Get(c.url + "/id")
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	decoder := json.NewDecoder(resp.Body)
 	var info map[string]interface{}
@@ -49,18 +50,28 @@ func (c *IPFSClusterConnector) PeerInfo() (string, error) {
 		panic(err)
 	}
 
-	c.selfID = info["id"].(string)
-	return info["peername"].(string), nil
+	selfID, ok := info["id"].(string)
+	if !ok {
+		panic("ID field does not exist!")
+	}
+	c.selfID = selfID
+
+	selfName, ok := info["peername"].(string)
+	if !ok {
+		panic("peername field does not exist!")
+	}
+	return selfName, nil
 }
 
 // PeerLs list the number of peers that are inside the cluster
-func (c *IPFSClusterConnector) PeerLs() (int, error) {
+func (c *Connector) PeerLs() (int, error) {
 	/* List all peers inside the IPFS cluster
 	For the moment, only returns the number of peers */
 	resp, err := http.Get(c.url + "/peers")
 	if err != nil {
 		return 0, err
 	}
+	defer resp.Body.Close()
 
 	var peersInfo []map[string]interface{}
 	decoder := json.NewDecoder(resp.Body)
@@ -80,7 +91,7 @@ func (c *IPFSClusterConnector) PeerLs() (int, error) {
 
 // PinStatus check the status of the specified cid, if the CID is not given, it will
 // show all CIDs that are inside the ipfs cluster
-func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
+func (c *Connector) PinStatus(cid string) (string, error) {
 	/* Check the pin status of all CIDs or a specific CID
 	For the moment, only checks the number of pin peers */
 	var statusURL string
@@ -95,6 +106,7 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	var pinInfo []map[string]interface{}
 	decoder := json.NewDecoder(resp.Body)
@@ -124,20 +136,25 @@ func (c *IPFSClusterConnector) PinStatus(cid string) (string, error) {
 // AddPin add the specified CID to the ipfs cluster, with the specified replication factor,
 // the default behavior is recursive, which means pinning all content that is beneath the CID
 // "mode" can be "direct" or "recursive"
-func (c *IPFSClusterConnector) AddPin(cid string, replicationFactor int) error {
+func (c *Connector) AddPin(cid string, replicationFactor int) error {
 	/* Add a new CID to the cluster,  it uses the default replication
 	factor that is specified in the CLUSTER configuration file */
 	peerID := c.peerIDs[c.currentIdx]
 	c.currentIdx = (c.currentIdx + 1) % len(c.peerIDs)
-	postURL := fmt.Sprintf("%s/pins/ipfs/%s?mode=recursive&name=&replication-max=%d&replication-min=%d&shard-size=0&user-allocations=%s",
+	postURL := fmt.Sprintf("%s/pins/ipfs/%s?mode=recursive&name=&replication-max="+
+		"%d&replication-min=%d&shard-size=0&user-allocations=%s",
 		c.url, cid, replicationFactor, replicationFactor, peerID)
-	_, err := http.PostForm(postURL, nil)
+	resp, err := http.PostForm(postURL, nil)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
 	return err
 }
 
 // PeerLoad checks the load balance of the cluster, namely how many blocks is stored on each
 // cluster peer
-func (c *IPFSClusterConnector) PeerLoad() (string, error) {
+func (c *Connector) PeerLoad() (string, error) {
 	min := func(a, b int) int {
 		if a < b {
 			return a
@@ -157,6 +174,7 @@ func (c *IPFSClusterConnector) PeerLoad() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	var totBlocks int
 	peerInfo := make(map[string]int)
@@ -168,7 +186,10 @@ func (c *IPFSClusterConnector) PeerLoad() (string, error) {
 		}
 		var statusMap = status["peer_map"].(map[string]interface{})
 		for key := range statusMap {
-			pinStatus := statusMap[key].(map[string]interface{})["status"].(string)
+			pinStatus, ok := statusMap[key].(map[string]interface{})["status"].(string)
+			if !ok {
+				panic("status field does not exist!")
+			}
 			if pinStatus == "pinned" {
 				peerInfo[key]++
 				totBlocks++

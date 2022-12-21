@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"fmt"
 	"ipfs-alpha-entanglement-code/performance"
 	"ipfs-alpha-entanglement-code/util"
+	"log"
 	"math/rand"
 	"os"
 	"time"
@@ -35,23 +35,23 @@ func (c *Client) AddUploadCmd() {
 
 			cid, metaCID, pinResult, err := c.Upload(args[0], alpha, s, p)
 			if len(cid) > 0 {
-				fmt.Println("Finish adding file to IPFS. File CID: ", cid)
+				log.Println("Finish adding file to IPFS. File CID: ", cid)
 			}
 			if len(metaCID) > 0 {
-				fmt.Println("Finish adding metaData to IPFS. MetaFile CID: ", metaCID)
+				log.Println("Finish adding metaData to IPFS. MetaFile CID: ", metaCID)
 			}
 			if err != nil {
-				fmt.Println("Error:", err)
+				log.Println("Error:", err)
 				os.Exit(1)
 			}
 			if pinResult != nil {
 				err = pinResult()
 				if err != nil {
-					fmt.Println("Error:", err)
+					log.Println("Error:", err)
 					os.Exit(1)
 				}
 			}
-			fmt.Println("Upload succeeds.")
+			log.Println("Upload succeeds.")
 		},
 	}
 	uploadCmd.Flags().IntVarP(&alpha, "alpha", "a", 0, "Set entanglement alpha. 0 means no entanglement")
@@ -75,16 +75,20 @@ func (c *Client) AddDownloadCmd() {
 
 			out, err := c.Download(args[0], path, opt)
 			if err != nil {
-				fmt.Println("Error:", err)
+				log.Println("Error:", err)
 				os.Exit(1)
 			}
-			fmt.Printf("Download succeeds to '%s'.\n", out)
+			log.Printf("Download succeeds to '%s'.\n", out)
 		},
 	}
-	downloadCmd.Flags().StringVarP(&path, "output", "o", "", "Provide output path to store the downloaded stuff")
-	downloadCmd.Flags().StringVarP(&opt.MetaCID, "metacid", "m", "", "Provide metafile cid for recovery")
-	downloadCmd.Flags().BoolVarP(&opt.UploadRecoverData, "upload-recovery", "u", true, "Allow upload recovered chunk back to IPFS network")
-	downloadCmd.Flags().IntSliceVar(&opt.DataFilter, "missing-data", []int{}, "Specify the missing data blocks for testing")
+	downloadCmd.Flags().StringVarP(&path, "output", "o", "",
+		"Provide output path to store the downloaded stuff")
+	downloadCmd.Flags().StringVarP(&opt.MetaCID, "metacid", "m",
+		"", "Provide metafile cid for recovery")
+	downloadCmd.Flags().BoolVarP(&opt.UploadRecoverData, "upload-recovery",
+		"u", true, "Allow upload recovered chunk back to IPFS network")
+	downloadCmd.Flags().IntSliceVar(&opt.DataFilter, "missing-data",
+		[]int{}, "Specify the missing data blocks for testing")
 
 	c.AddCommand(downloadCmd)
 }
@@ -107,12 +111,12 @@ func (c *Client) AddPerformanceCmd() {
 			rand.Seed(time.Now().UnixNano())
 			result := performance.Perf_Recovery(fileCase, lossPercent, iteration)
 			if result.Err != nil {
-				fmt.Println("Error:", result.Err)
+				log.Println("Error:", result.Err)
 				return
 			}
-			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
-			fmt.Printf("Parity Overhead: %f\n", result.DownloadParity)
-			fmt.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
+			log.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
+			log.Printf("Parity Overhead: %f\n", result.DownloadParity)
+			log.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
 		},
 	}
 	recoverCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
@@ -130,12 +134,11 @@ func (c *Client) AddPerformanceCmd() {
 			rand.Seed(time.Now().UnixNano())
 			result := performance.Perf_Replication(fileCase, lossPercent, repFactor, iteration)
 			if result.Err != nil {
-				fmt.Println("Error:", result.Err)
+				log.Println("Error:", result.Err)
 				return
 			}
-			fmt.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
-			// fmt.Printf("Parity Overhead: %d\n", result.DownloadParity)
-			fmt.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
+			log.Printf("Data Recovery Rate: %f\n", result.RecoverRate)
+			log.Printf("Successfully Downloaded Block: %d\n", result.PartialSuccessCnt)
 		},
 	}
 	repCmd.Flags().StringVarP(&fileCase, "testcase", "t", "25MB", "Test cases of different file sizes")
