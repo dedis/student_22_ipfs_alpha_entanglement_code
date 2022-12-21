@@ -126,33 +126,13 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 		printRecoverStatus(false, DownloadFail, block)
 
 		// repair data
-		if allowDepth == 0 {
+		success := l.sequentialRepair(block, rid, allowDepth)
+		if success {
+			repairSuccess = true
+			printRecoverStatus(false, RepairSuccess, block)
+		} else {
 			printRecoverStatus(false, RepairFail, block)
-			return
 		}
-		pairs := block.GetRecoverPairs()
-		if len(pairs) == 0 {
-			printRecoverStatus(false, RepairFail, block)
-			return
-		}
-		for _, mypair := range pairs {
-			leftChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Left, allowDepth-1)
-			if RepairErr != nil {
-				continue
-			}
-
-			rightChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Right, allowDepth-1)
-			if RepairErr != nil {
-				continue
-			}
-
-			if block.Recover(leftChunk, rightChunk) == nil {
-				printRecoverStatus(false, RepairSuccess, block)
-				repairSuccess = true
-				return
-			}
-		}
-		printRecoverStatus(false, RepairFail, block)
 	}
 	recursiveRecover(block, allowDepth)
 
@@ -348,6 +328,36 @@ func (l *Lattice) getRequestID() uint {
 	return id
 }
 
+// sequentialRepair repairs a single block using single thread
+func (l *Lattice) sequentialRepair(block *Block, rid uint, allowDepth uint) bool {
+	if allowDepth == 0 {
+		return false
+	}
+	pairs := block.GetRecoverPairs()
+	if len(pairs) == 0 {
+		return false
+	}
+	for _, mypair := range pairs {
+		leftChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Left, allowDepth-1)
+		if RepairErr != nil {
+			continue
+		}
+
+		rightChunk, RepairErr := l.getDataFromBlockSequential(rid, mypair.Right, allowDepth-1)
+		if RepairErr != nil {
+			continue
+		}
+
+		if block.Recover(leftChunk, rightChunk) == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// ----------------------------------------------------------------------
+
+// RecoverStatus enums the recover end state of a block
 type RecoverStatus int
 
 const (
@@ -384,6 +394,7 @@ var recoverStatusToColor = map[RecoverStatus][]func(...interface{}) string{
 	},
 }
 
+// printRecoverStatus prints the log for recover stage
 func printRecoverStatus(isParallel bool, currStage RecoverStatus, block *Block) {
 	var mode string
 	if isParallel {
