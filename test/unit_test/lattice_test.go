@@ -31,7 +31,7 @@ func (getter *SimpleGetter) GetData(index int) (data []byte, err error) {
 			data = getter.Data[index-1]
 		}
 	}
-	return
+	return data, err
 }
 
 func (getter *SimpleGetter) GetParity(index int, strand int) (parity []byte, err error) {
@@ -50,7 +50,7 @@ func (getter *SimpleGetter) GetParity(index int, strand int) (parity []byte, err
 		parity = getter.Parity[strand][index-1]
 	}
 
-	return
+	return parity, err
 }
 
 var alpha, s, p int = 3, 5, 5

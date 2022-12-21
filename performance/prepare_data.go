@@ -1,6 +1,6 @@
 package performance
 
-var alpha, s, p = 3, 5, 5
+var alpha = 3
 
 type FileInfo struct {
 	FileCID    string

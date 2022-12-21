@@ -3,7 +3,6 @@ package performance
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"ipfs-alpha-entanglement-code/entangler"
 	ipfsconnector "ipfs-alpha-entanglement-code/ipfs-connector"
 	"ipfs-alpha-entanglement-code/util"
@@ -26,7 +25,9 @@ type RecoverGetter struct {
 	cache map[string][]byte
 }
 
-func CreateRecoverGetter(connector *ipfsconnector.IPFSConnector, CIDIndexMap map[string]int, parityCIDs [][]string) (*RecoverGetter, error) {
+func CreateRecoverGetter(connector *ipfsconnector.IPFSConnector,
+	CIDIndexMap map[string]int, parityCIDs [][]string) (*RecoverGetter, error) {
+
 	indexToDataCIDMap := *util.NewSafeMap()
 	indexToDataCIDMap.AddReverseMap(CIDIndexMap)
 	getter := RecoverGetter{
@@ -145,7 +146,6 @@ var Recovery = func(fileinfo FileInfo, metaData Metadata, getter *RecoverGetter)
 		// unmarshal and iterate
 		dagNode, err := conn.GetDagNodeFromRawBytes(chunk)
 		if err != nil {
-			fmt.Println(err)
 			return
 		}
 		links := dagNode.Links()
@@ -276,7 +276,7 @@ var RecoverWithFilter = func(fileinfo FileInfo, missNum int, iteration int, nbNo
 	return avgResult
 }
 
-func Perf_Recovery(fileCase string, missPercent float32, iteration int) PerfResult {
+func PerfRecovery(fileCase string, missPercent float32, iteration int) PerfResult {
 	// check the validity of test case
 	fileinfo, ok := InfoMap[fileCase]
 	if !ok {

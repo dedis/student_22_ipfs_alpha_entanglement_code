@@ -109,7 +109,7 @@ func (c *Client) AddPerformanceCmd() {
 			util.DisableInfoPrint()
 
 			rand.Seed(time.Now().UnixNano())
-			result := performance.Perf_Recovery(fileCase, lossPercent, iteration)
+			result := performance.PerfRecovery(fileCase, lossPercent, iteration)
 			if result.Err != nil {
 				log.Println("Error:", result.Err)
 				return
@@ -132,7 +132,7 @@ func (c *Client) AddPerformanceCmd() {
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			rand.Seed(time.Now().UnixNano())
-			result := performance.Perf_Replication(fileCase, lossPercent, repFactor, iteration)
+			result := performance.PerfReplication(fileCase, lossPercent, repFactor, iteration)
 			if result.Err != nil {
 				log.Println("Error:", result.Err)
 				return

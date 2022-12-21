@@ -37,26 +37,38 @@ func (getter *RepGetter) GetData(index int) (data []byte, err error) {
 		return nil, err
 	}
 
-	if getter.DataFilter != nil {
-		if _, ok = getter.DataFilter[index]; ok {
-			/* get the rep, mask to represent the rep loss */
-			if getter.RepFilter != nil {
-				missing := true
-				for _, repFilter := range getter.RepFilter {
-					if repFilter == nil {
-						continue
-					}
-					if _, ok := repFilter[index]; !ok {
-						missing = false
-						break
-					}
-				}
-				if missing {
-					err := xerrors.Errorf("no data exists")
-					return nil, err
-				}
+	// checks if the data is missing in the network
+	hasData := func() bool {
+		// if no data filter
+		if getter.DataFilter == nil {
+			return true
+		}
+		// if data not filtered
+		if _, ok = getter.DataFilter[index]; !ok {
+			return true
+		}
+
+		/* get the rep, mask to represent the rep loss */
+		// if no replication filter
+		if getter.RepFilter == nil {
+			return true
+		}
+		missing := true
+		for _, repFilter := range getter.RepFilter {
+			if repFilter == nil {
+				continue
+			}
+			if _, ok := repFilter[index]; !ok {
+				missing = false
+				break
 			}
 		}
+		return !missing
+	}
+
+	if !hasData() {
+		err := xerrors.Errorf("no data exists")
+		return nil, err
 	}
 
 	// read from cache
@@ -180,7 +192,7 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 	return avgResult
 }
 
-func Perf_Replication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
+func PerfReplication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
 	// check the validity of test case
 	fileinfo, ok := InfoMap[fileCase]
 	if !ok {
