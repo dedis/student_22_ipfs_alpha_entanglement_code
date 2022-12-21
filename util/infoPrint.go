@@ -53,6 +53,7 @@ func LogPrintf(format string, a ...interface{}) {
 	if ok {
 		format = fmt.Sprintf(White("[%s]: %s\n"), callerPackage, format)
 		log.Printf(format, a...)
+		return
 	}
 	log.Printf(format+"\n", a...)
 }
