@@ -22,8 +22,7 @@ type Metadata struct {
 
 type Client struct {
 	*ipfsconnector.IPFSConnector
-	*ipfscluster.IPFSClusterConnector
-
+	IPFSClusterConnector *ipfscluster.Connector
 	*cobra.Command
 }
 
@@ -67,7 +66,7 @@ func (c *Client) AddAndPinAsFile(data []byte, replicate int) (cid string, err er
 	}
 
 	// pin file in cluster
-	err = c.AddPin(cid, replicate)
+	err = c.IPFSClusterConnector.AddPin(cid, replicate)
 	return cid, err
 }
 
@@ -81,7 +80,7 @@ func (c *Client) AddAndPinAsRaw(data []byte, replicate int) (cid string, err err
 	}
 
 	// pin data in cluster
-	err = c.AddPin(cid, replicate)
+	err = c.IPFSClusterConnector.AddPin(cid, replicate)
 	return cid, err
 }
 

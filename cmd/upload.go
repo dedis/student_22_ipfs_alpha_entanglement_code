@@ -141,7 +141,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	go func() {
 		defer waitGroupPin.Done()
 
-		err = c.AddPin(metaCID, 0)
+		err = c.IPFSClusterConnector.AddPin(metaCID, 0)
 		if err != nil {
 			PinErr = xerrors.Errorf("could not pin metadata: %s", err)
 			return
@@ -149,7 +149,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 		for i := 0; i < alpha; i++ {
 			for j := 0; j < len(parityCIDs[0]); j++ {
-				err := c.AddPin(parityCIDs[i][j], 1)
+				err := c.IPFSClusterConnector.AddPin(parityCIDs[i][j], 1)
 				if err != nil {
 					PinErr = xerrors.Errorf("could not pin parity %s: %s", parityCIDs[i][j], err)
 					return
