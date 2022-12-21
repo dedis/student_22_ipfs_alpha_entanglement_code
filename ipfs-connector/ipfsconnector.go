@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"ipfs-alpha-entanglement-code/entangler"
@@ -19,12 +19,12 @@ type IPFSConnector struct {
 	shell *sh.Shell
 }
 
-var Default_Port int = 5001
+var DefaultPort = 5001
 
 // CreateIPFSConnector creates a running IPFS node and returns a connector to it
 func CreateIPFSConnector(port int) (*IPFSConnector, error) {
 	if port == 0 {
-		port = Default_Port
+		port = DefaultPort
 	}
 	return &IPFSConnector{sh.NewShell(fmt.Sprintf("localhost:%d", port))}, nil
 }
@@ -57,7 +57,7 @@ func (c *IPFSConnector) GetFileToMem(cid string) ([]byte, error) {
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(data)
+	body, err := io.ReadAll(data)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 
 	rootCID, err = c.AddFile(path)
 	util.CheckError(err, "could not add File to IPFS")
-	util.LogPrint("Finish adding file to IPFS with CID %s. File path: %s", rootCID, path)
+	util.LogPrintf("Finish adding file to IPFS with CID %s. File path: %s", rootCID, path)
 
 	if alpha < 1 {
 		// expect no entanglement
@@ -39,12 +39,12 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 	}
 	nodes := root.GetFlattenedTree(s, p, true)
 	blockNum := len(nodes)
-	util.InfoPrint(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), blockNum)
+	util.InfoPrintf(util.Green("Number of nodes in the merkle tree is %d. Node sequence:"), blockNum)
 	for _, node := range nodes {
-		util.InfoPrint(util.Green(" %d"), node.PreOrderIdx)
+		util.InfoPrintf(util.Green(" %d"), node.PreOrderIdx)
 	}
-	util.InfoPrint("\n")
-	util.LogPrint("Finish reading and flattening file's merkle tree from IPFS")
+	util.InfoPrintf("\n")
+	util.LogPrintf("Finish reading and flattening file's merkle tree from IPFS")
 
 	/* generate entanglement */
 
@@ -102,7 +102,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 				return rootCID, "", nil, xerrors.Errorf("could not upload parity %d on strand %d\n", i, k)
 			}
 		}
-		util.LogPrint("Finish uploading entanglement %d", k)
+		util.LogPrintf("Finish uploading entanglement %d", k)
 	}
 
 	/* Store Metatdata */
@@ -128,7 +128,7 @@ func (c *Client) Upload(path string, alpha int, s int, p int) (rootCID string, m
 		return rootCID, "", nil, xerrors.Errorf("could not upload metadata: %s", err)
 	}
 
-	util.LogPrint("File CID: %s. MetaFile CID: %s", rootCID, metaCID)
+	util.LogPrintf("File CID: %s. MetaFile CID: %s", rootCID, metaCID)
 	if clusterErr != nil {
 		return rootCID, metaCID, nil, clusterErr
 	}

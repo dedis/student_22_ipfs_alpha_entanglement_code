@@ -2,7 +2,6 @@ package ipfsconnector
 
 // TreeNode implements a node in IPLD Merkle Tree
 type TreeNode struct {
-	// TODO: consider DAG? Multiple Parents?
 	data []byte
 
 	Children    []*TreeNode
@@ -38,7 +37,7 @@ func (n *TreeNode) Data() (data []byte, err error) {
 	}
 	data = n.data
 
-	return
+	return data, err
 }
 
 // AddChild links a child to the current node
@@ -75,21 +74,7 @@ func (n *TreeNode) GetFlattenedTree(s int, p int, swap bool) []*TreeNode {
 	walker(n)
 
 	if swap {
-		// move the parents at least one LW away from their children
-		windowSize := s * p
-		for _, internalNode := range internals {
-			lowestChild := internalNode.Children[0]
-			highestChild := internalNode.Children[len(internalNode.Children)-1]
-			for j := windowSize; j < n.TreeSize; j += s {
-				inWindow := (nodes[j].PreOrderIdx > lowestChild.PreOrderIdx-windowSize &&
-					nodes[j].PreOrderIdx < highestChild.PreOrderIdx+windowSize)
-				if !inWindow && len(nodes[j].Children) == 0 {
-					// Swap position of internalNode and the data
-					nodes[j], nodes[internalNode.PreOrderIdx-1] = nodes[internalNode.PreOrderIdx-1], nodes[j]
-					break
-				}
-			}
-		}
+		nodes = n.swapFlattenedTree(nodes, internals, s, p)
 	}
 	return nodes
 }
@@ -115,5 +100,25 @@ func (n *TreeNode) GetLeafNodes() []*TreeNode {
 		}
 	}
 	walker(n)
+	return nodes
+}
+
+func (n *TreeNode) swapFlattenedTree(nodes []*TreeNode, internals []*TreeNode, s int, p int) []*TreeNode {
+	// move the parents at least one LW away from their children
+	windowSize := s * p
+	for _, internalNode := range internals {
+		lowestChild := internalNode.Children[0]
+		highestChild := internalNode.Children[len(internalNode.Children)-1]
+		for j := windowSize; j < n.TreeSize; j += s {
+			inWindow := (nodes[j].PreOrderIdx > lowestChild.PreOrderIdx-windowSize &&
+				nodes[j].PreOrderIdx < highestChild.PreOrderIdx+windowSize)
+			if !inWindow && len(nodes[j].Children) == 0 {
+				// Swap position of internalNode and the data
+				nodes[j], nodes[internalNode.PreOrderIdx-1] = nodes[internalNode.PreOrderIdx-1], nodes[j]
+				break
+			}
+		}
+	}
+
 	return nodes
 }

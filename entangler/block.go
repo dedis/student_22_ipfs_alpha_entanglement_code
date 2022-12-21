@@ -55,7 +55,7 @@ func NewBlock(index int, parityBlock bool) (block *Block) {
 		waitingGroup: sync.NewCond(&m),
 	}
 
-	return
+	return block
 }
 
 // GetData returns the chunk data if available
@@ -69,7 +69,7 @@ func (b *Block) GetData() (data []byte, err error) {
 		err = xerrors.Errorf("no available data. Status: %d", b.Status)
 	}
 
-	return
+	return data, err
 }
 
 func (b *Block) IsAvailable() bool {
@@ -132,14 +132,14 @@ func (b *Block) FinishRepair(success bool) {
 }
 
 // SetData sets the chunk data inside the block
-func (b *Block) SetData(data []byte, recover bool) {
+func (b *Block) SetData(data []byte, isRecover bool) {
 	b.Lock()
 	defer b.Unlock()
 
 	if b.Status != DataAvailable {
 		b.Data = data
 		b.Status = DataAvailable
-		b.Repaired = recover
+		b.Repaired = isRecover
 	}
 }
 
@@ -149,7 +149,7 @@ func (b *Block) Recover(v []byte, w []byte) (err error) {
 		err = xerrors.Errorf("invalid recover input!")
 		return err
 	}
-	data := XORChunkData(v, w)
+	data := xorChunkData(v, w)
 
 	b.Lock()
 	defer b.Unlock()
@@ -167,44 +167,59 @@ func (b *Block) Recover(v []byte, w []byte) (err error) {
 func (b *Block) GetRecoverPairs() (pairs []*BlockPair) {
 	b.once.Do(func() {
 		if b.IsParity {
-			// backward neighbors
-			r := b.LeftNeighbors[0]
-			l := r.LeftNeighbors[b.Strand]
-			if l.IsWrapModified {
-				l = l.LeftNeighbors[0]
-			}
-			pairs = append(pairs, &BlockPair{Left: l, Right: r})
-
-			// forward neighbors
-			l = b.RightNeighbors[0]
-			r = l.RightNeighbors[b.Strand]
-			if !b.IsWrapModified {
-				pairs = append(pairs, &BlockPair{Left: l, Right: r})
-			}
+			b.setRecoverPairsForParity()
 		} else {
-			for k := range b.LeftNeighbors {
-				l := b.LeftNeighbors[k]
-				r := b.RightNeighbors[k]
-				if l.IsWrapModified {
-					l = l.LeftNeighbors[0]
-				}
-				pairs = append(pairs, &BlockPair{Left: l, Right: r})
-				if r.IsWrapModified {
-					l = r.RightNeighbors[0]
-					r = l.RightNeighbors[k]
-					pairs = append(pairs, &BlockPair{Left: l, Right: r})
-				}
-			}
+			b.setRecoverPairsForData()
 		}
-		b.recoverPairs = pairs
 	})
 
 	pairs = b.recoverPairs
-	return
+	return pairs
 }
 
-// XORChunkData pads the bytes to the desired length and XOR these two bytes array
-func XORChunkData(chunk1 []byte, chunk2 []byte) (result []byte) {
+// setRecoverPairsForData calculates and sets the pairs to be used in data block recovery
+func (b *Block) setRecoverPairsForData() {
+	pairs := make([]*BlockPair, 0)
+	for k := range b.LeftNeighbors {
+		l := b.LeftNeighbors[k]
+		r := b.RightNeighbors[k]
+		if l.IsWrapModified {
+			l = l.LeftNeighbors[0]
+		}
+		pairs = append(pairs, &BlockPair{Left: l, Right: r})
+		if r.IsWrapModified {
+			l = r.RightNeighbors[0]
+			r = l.RightNeighbors[k]
+			pairs = append(pairs, &BlockPair{Left: l, Right: r})
+		}
+	}
+
+	b.recoverPairs = pairs
+}
+
+// setRecoverPairsForParity calculates and sets the pairs to be used in parity block recovery
+func (b *Block) setRecoverPairsForParity() {
+	pairs := make([]*BlockPair, 0)
+	// backward neighbors
+	r := b.LeftNeighbors[0]
+	l := r.LeftNeighbors[b.Strand]
+	if l.IsWrapModified {
+		l = l.LeftNeighbors[0]
+	}
+	pairs = append(pairs, &BlockPair{Left: l, Right: r})
+
+	// forward neighbors
+	l = b.RightNeighbors[0]
+	r = l.RightNeighbors[b.Strand]
+	if !b.IsWrapModified {
+		pairs = append(pairs, &BlockPair{Left: l, Right: r})
+	}
+
+	b.recoverPairs = pairs
+}
+
+// xorChunkData pads the bytes to the desired length and XOR these two bytes array
+func xorChunkData(chunk1 []byte, chunk2 []byte) (result []byte) {
 	if len(chunk1) == 0 {
 		return chunk2
 	}
@@ -212,18 +227,18 @@ func XORChunkData(chunk1 []byte, chunk2 []byte) (result []byte) {
 		return chunk1
 	}
 
-	PaddingData(&chunk1, &chunk2)
+	paddingData(&chunk1, &chunk2)
 
 	result = make([]byte, len(chunk1))
 	for i := 0; i < len(chunk1); i++ {
 		result[i] = chunk1[i] ^ chunk2[i]
 	}
 
-	return
+	return result
 }
 
-// PaddingData pads the two chunks to the same length
-func PaddingData(chunk1 *[]byte, chunk2 *[]byte) {
+// paddingData pads the two chunks to the same length
+func paddingData(chunk1 *[]byte, chunk2 *[]byte) {
 	len1, len2 := len(*chunk1), len(*chunk2)
 	if len1 > len2 {
 		padded := make([]byte, len1)

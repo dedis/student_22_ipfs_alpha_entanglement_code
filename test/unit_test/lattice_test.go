@@ -92,11 +92,11 @@ var getTest = func(chunkNum int, chunkSize int, missingIndexes map[int]struct{},
 			DataFilter:   missingIndexes,
 			Parity:       parities,
 			ParityFilter: missingParities}
-		util.LogPrint(util.Green("Finish creating getter"))
+		util.LogPrintf(util.Green("Finish creating getter"))
 
 		lattice := entangler.NewLattice(alpha, s, p, chunkNum, &getter, 1)
 		lattice.Init()
-		util.LogPrint(util.Green("Finish generating lattice"))
+		util.LogPrintf(util.Green("Finish generating lattice"))
 
 		myData, err := lattice.GetAllData()
 		if !failureExpected {
@@ -127,16 +127,16 @@ func Test_Lattice_No_Recovery(t *testing.T) {
 func Test_Lattice_Single_Data_Lost(t *testing.T) {
 	EnableLog(true)
 	missedFront := func(chunkNum int, chunkSize int) func(*testing.T) {
-		util.LogPrint("Missing Position: %d\n", 0)
+		util.LogPrintf("Missing Position: %d\n", 0)
 		return getTest(chunkNum, chunkSize, map[int]struct{}{0: {}}, []map[int]struct{}{}, false)
 	}
 	missedEnd := func(chunkNum int, chunkSize int) func(*testing.T) {
-		util.LogPrint("Missing Position: %d\n", chunkNum-1)
+		util.LogPrintf("Missing Position: %d\n", chunkNum-1)
 		return getTest(chunkNum, chunkSize, map[int]struct{}{chunkNum - 1: {}}, []map[int]struct{}{}, false)
 	}
 	missedMiddle := func(chunkNum int, chunkSize int) func(*testing.T) {
 		missed := 1 + rand.Intn(chunkNum-1)
-		util.LogPrint("Missing Position: %d\n", missed)
+		util.LogPrintf("Missing Position: %d\n", missed)
 		return getTest(chunkNum, chunkSize, map[int]struct{}{missed: {}}, []map[int]struct{}{}, false)
 	}
 	t.Run("middle", missedMiddle(81, 32))
@@ -167,7 +167,7 @@ func Test_Lattice_Multiple_Data_Lost(t *testing.T) {
 func Test_Lattice_Single_Two_Step_Recovery(t *testing.T) {
 	EnableLog(true)
 	missedFront := func(chunkNum int, chunkSize int) func(*testing.T) {
-		util.LogPrint("Missing Position: %d\n", 0)
+		util.LogPrintf("Missing Position: %d\n", 0)
 		parityMiss := make([]map[int]struct{}, alpha)
 		for k := 0; k < alpha; k++ {
 			parityMiss[k] = map[int]struct{}{0: {}}
@@ -175,7 +175,7 @@ func Test_Lattice_Single_Two_Step_Recovery(t *testing.T) {
 		return getTest(chunkNum, chunkSize, map[int]struct{}{0: {}}, parityMiss, false)
 	}
 	missedEnd := func(chunkNum int, chunkSize int) func(*testing.T) {
-		util.LogPrint("Missing Position: %d\n", chunkNum-1)
+		util.LogPrintf("Missing Position: %d\n", chunkNum-1)
 		parityMiss := make([]map[int]struct{}, alpha)
 		for k := 0; k < alpha; k++ {
 			parityMiss[k] = map[int]struct{}{chunkNum - 1: {}}
@@ -184,7 +184,7 @@ func Test_Lattice_Single_Two_Step_Recovery(t *testing.T) {
 	}
 	missedMiddle := func(chunkNum int, chunkSize int) func(*testing.T) {
 		missed := 1 + rand.Intn(chunkNum-1)
-		util.LogPrint("Missing Position: %d\n", missed)
+		util.LogPrintf("Missing Position: %d\n", missed)
 		parityMiss := make([]map[int]struct{}, alpha)
 		for k := 0; k < alpha; k++ {
 			parityMiss[k] = map[int]struct{}{missed: {}}
@@ -270,7 +270,7 @@ func Test_Lattice_Whole_Data_Lost(t *testing.T) {
 func Test_Lattice_Fail_Recovery(t *testing.T) {
 	EnableLog(true)
 	missedFail := func(chunkNum int, chunkSize int) func(*testing.T) {
-		util.LogPrint("Missing Position: %d\n", 0)
+		util.LogPrintf("Missing Position: %d\n", 0)
 		parityMiss := make([]map[int]struct{}, alpha)
 		for k := 0; k < alpha; k++ {
 			parityMiss[k] = map[int]struct{}{0: {}}

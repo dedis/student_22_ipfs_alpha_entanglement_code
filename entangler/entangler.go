@@ -42,7 +42,7 @@ func NewEntangledBlock(l int, r int, data []byte, strand int) (block *EntangledB
 
 // Entangler manages all the entanglement related behaviors
 type Entangler struct {
-	Alpha    int // TODO: now only support alpha = 3 ???
+	Alpha    int // now only support alpha = 3
 	S        int
 	P        int
 	ChunkNum int
@@ -57,17 +57,17 @@ type Entangler struct {
 
 // NewEntangler takes the entanglement paramters and the original data slice and creates an entangler
 func NewEntangler(alpha int, s int, p int) (entangler *Entangler) {
-	if alpha == 1 {
-		if s != 1 || p != 0 {
-			util.ThrowError("invalid value. Expect s = 1 and p = 0")
-		}
-	} else if alpha > 1 {
-		if s > p {
-			util.ThrowError("invalid value. Expect p >= s")
-		}
-	} else {
+	// value check. See details in alpha-entanglement-code paper (https://ieeexplore.ieee.org/document/8416482)
+	if alpha < 1 {
 		util.ThrowError("invalid value. Expect alpha > 0")
 	}
+	if alpha == 1 && !(s == 1 && p == 0) {
+		util.ThrowError("invalid value. Expect s = 1 and p = 0")
+	}
+	if alpha > 1 && s > p {
+		util.ThrowError("invalid value. Expect p >= s")
+	}
+
 	entangler = &Entangler{Alpha: alpha, S: s, P: p}
 	if s > p {
 		entangler.MaxChainNumPerStrand = s
@@ -90,7 +90,7 @@ func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string, parity
 		parities[k] = make([][]byte, e.ChunkNum)
 	}
 	for parity := range parityChan {
-		util.InfoPrint(util.Yellow("Strand %d: (%d, %d)\n"), parity.Strand, parity.LeftBlockIndex, parity.RightBlockIndex)
+		util.InfoPrintf(util.Yellow("Strand %d: (%d, %d)\n"), parity.Strand, parity.LeftBlockIndex, parity.RightBlockIndex)
 		parities[parity.Strand][parity.LeftBlockIndex-1] = parity.Data
 	}
 
@@ -109,7 +109,7 @@ func (e *Entangler) WriteEntanglementToFile(chunkSize int, path []string, parity
 		}
 
 		// write entanglement to file
-		err = os.WriteFile(path[k], entangledData, 0644)
+		err = os.WriteFile(path[k], entangledData, 0600)
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func (e *Entangler) Entangle(dataChan chan []byte, parityChan chan EntangledBloc
 	e.prepareEntangle()
 
 	// generate the lattice
-	util.LogPrint("Start generating lattice")
+	util.LogPrintf("Start generating lattice")
 	index := 0
 	for block := range dataChan {
 		index++
@@ -133,12 +133,12 @@ func (e *Entangler) Entangle(dataChan chan []byte, parityChan chan EntangledBloc
 		}
 	}
 	e.ChunkNum = index
-	util.LogPrint("Finish generating lattice")
+	util.LogPrintf("Finish generating lattice")
 
 	// wraps the lattice
-	util.LogPrint("Start wrapping lattice")
+	util.LogPrintf("Start wrapping lattice")
 	e.wrapLattice(parityChan)
-	util.LogPrint("Finish wrapping lattice")
+	util.LogPrintf("Finish wrapping lattice")
 
 	close(parityChan)
 
@@ -167,8 +167,9 @@ func (e *Entangler) prepareEntangle() {
 	}
 }
 
-// entangleSingleBlock reads the backward parity neighbors from cache and produce the corresponding forward parity neighbors
-// It should be called in the correct order to ensure the correctness of cached blocks
+// entangleSingleBlock reads the backward parity neighbors from cache
+// and produce the corresponding forward parity neighbors. It should be
+// called in the correct order to ensure the correctness of cached blocks
 func (e *Entangler) entangleSingleBlock(index int, data []byte, parityChan chan EntangledBlock) {
 	cachePos := e.getChainIndexes(index)
 	rIndexes := e.getForwardNeighborIndexes(index)
@@ -177,7 +178,7 @@ func (e *Entangler) entangleSingleBlock(index int, data []byte, parityChan chan 
 		// read parity block from cache
 		prevBlock := e.cachedParities[k][cachePos[k]]
 		// generate new parity block
-		parityData := XORChunkData(data, prevBlock.Data)
+		parityData := xorChunkData(data, prevBlock.Data)
 		// generate, cache and store entangled block
 		nextBlock := NewEntangledBlock(index, rIndexes[k], parityData, k)
 		e.cachedParities[k][cachePos[k]] = nextBlock
@@ -189,6 +190,7 @@ func (e *Entangler) entangleSingleBlock(index int, data []byte, parityChan chan 
 	}
 }
 
+// wrapLattice wraps the lattice by modify the first parities on each strand
 func (e *Entangler) wrapLattice(parityChan chan EntangledBlock) {
 	for k, cacheParity := range e.cachedParities {
 		for _, parityNode := range cacheParity {
@@ -200,7 +202,7 @@ func (e *Entangler) wrapLattice(parityChan chan EntangledBlock) {
 			if e.IsValidIndex(rIndex) {
 				// the first block is not the rightmost block
 				rNext := NewEntangledBlock(index, rIndex,
-					XORChunkData(e.ChainStartData[index-1], parityNode.Data), k)
+					xorChunkData(e.ChainStartData[index-1], parityNode.Data), k)
 				e.parityBlocksToWrap[k][index-1] = rNext
 			}
 			parityChan <- *e.parityBlocksToWrap[k][index-1]
@@ -238,14 +240,15 @@ func (e *Entangler) getChainIndexes(index int) (indexes []int) {
 // getChainStartIndexes returns the position of the first node on the chain where the indexed node is on
 func (e *Entangler) getChainStartIndexes(index int) (indexes []int) {
 	indexes = e.getChainIndexes(index)
-	indexes[0] += 1
+	indexes[0]++
 	indexes[1] = (e.P-indexes[1])%e.P + 1
-	indexes[2] += 1
+	indexes[2]++
 
 	return indexes
 }
 
 // getBackwardNeighborIndexes returns the index of backward neighbors that can be entangled with current node
+// See details in alpha-entanglement-code paper (https://ieeexplore.ieee.org/document/8416482)
 func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
 	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")
@@ -275,6 +278,7 @@ func (e *Entangler) getBackwardNeighborIndexes(index int) (indexes []int) {
 }
 
 // getForwardNeighborIndexes returns the index of forward neighbors that is the entangled output of current node
+// See details in alpha-entanglement-code paper (https://ieeexplore.ieee.org/document/8416482)
 func (e *Entangler) getForwardNeighborIndexes(index int) (indexes []int) {
 	if e.Alpha > 3 {
 		util.ThrowError("alpha should equal 3")

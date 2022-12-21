@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"strings"
 )
@@ -16,42 +17,42 @@ func ThrowError(msg string, args ...interface{}) {
 	panic(fmt.Errorf(msg, args...))
 }
 
-var Global_LogPrint bool = false
-var Global_InfoPrint bool = false
+var GlobalLogPrint = false
+var GlobalInfoPrint = false
 
-func Enable_LogPrint() {
-	Global_LogPrint = true
+func EnableLogPrint() {
+	GlobalLogPrint = true
 }
 
-func Disable_LogPrint() {
-	Global_LogPrint = false
+func DisableLogPrint() {
+	GlobalLogPrint = false
 }
 
-func Enable_InfoPrint() {
-	Global_InfoPrint = true
+func EnableInfoPrint() {
+	GlobalInfoPrint = true
 }
 
-func Disable_InfoPrint() {
-	Global_InfoPrint = false
+func DisableInfoPrint() {
+	GlobalInfoPrint = false
 }
 
-func InfoPrint(format string, a ...interface{}) (int, error) {
-	if !Global_InfoPrint {
-		return 0, nil
+func InfoPrintf(format string, a ...interface{}) {
+	if !GlobalInfoPrint {
+		return
 	}
-	return fmt.Printf(format, a...)
+	log.Printf(format, a...)
 }
 
-func LogPrint(format string, a ...interface{}) (int, error) {
-	if !Global_LogPrint {
-		return 0, nil
+func LogPrintf(format string, a ...interface{}) {
+	if !GlobalLogPrint {
+		return
 	}
 	_, file, _, ok := runtime.Caller(1)
 	paths := strings.Split(file, "/")
 	callerPackage := paths[len(paths)-2]
 	if ok {
 		format = fmt.Sprintf(White("[%s]: %s\n"), callerPackage, format)
-		return fmt.Printf(format, a...)
+		log.Printf(format, a...)
 	}
-	return fmt.Printf(format+"\n", a...)
+	log.Printf(format+"\n", a...)
 }

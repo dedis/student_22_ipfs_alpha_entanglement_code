@@ -10,7 +10,7 @@ var once sync.Once
 func EnableLog(enable bool) {
 	once.Do(func() {
 		if enable {
-			util.Enable_LogPrint()
+			util.EnableLogPrint()
 		}
 	})
 }

@@ -41,56 +41,16 @@ func NewLattice(alpha int, s int, p int, blockNum int, blockGetter BlockGetter, 
 		SwitchDepth:  switchDepth,
 	}
 
-	return
+	return lattice
 }
 
 // Init inits the lattice by creating the entire structure in memory
 func (l *Lattice) Init() {
 	l.Once.Do(func() {
-		// Create datablocks
-		for i := 0; i < l.ChunkNum; i++ {
-			datab := NewBlock(i+1, false)
-			datab.LeftNeighbors = make([]*Block, l.Alpha)
-			datab.RightNeighbors = make([]*Block, l.Alpha)
-			l.DataBlocks = append(l.DataBlocks, datab)
-		}
-
-		// Create parities
-		for k := 0; k < l.Alpha; k++ {
-			for i := 0; i < l.ChunkNum; i++ {
-				parityb := NewBlock(i+1, true)
-				parityb.LeftNeighbors = make([]*Block, 1)
-				parityb.RightNeighbors = make([]*Block, 1)
-				parityb.Strand = k
-				l.ParityBlocks[k] = append(l.ParityBlocks[k], parityb)
-			}
-		}
-
-		// Link
-		for i := 0; i < l.ChunkNum; i++ {
-			datab := l.DataBlocks[i]
-			forward := l.getForwardNeighborIndexes(i + 1)
-			for k := 0; k < l.Alpha; k++ {
-				rightParity := l.ParityBlocks[k][i]
-				rightParity.LeftNeighbors[0] = datab
-				datab.RightNeighbors[k] = rightParity
-
-				var rightDataBlock *Block
-				if l.IsValidIndex(forward[k]) {
-					rightDataBlock = l.DataBlocks[forward[k]-1]
-				} else {
-					// Wrap lattice
-					index := l.getChainStartIndexes(i + 1)[k]
-					rightDataBlock = l.DataBlocks[index-1]
-					if rightDataBlock != datab {
-						rightDataBlock.RightNeighbors[k].IsWrapModified = true
-					}
-				}
-				rightParity.RightNeighbors[0] = rightDataBlock
-				rightDataBlock.LeftNeighbors[k] = rightParity
-			}
-		}
-		util.LogPrint("Finish initializing lattice")
+		l.initDataBlocks()
+		l.initParityBlocks()
+		l.initLinks()
+		util.LogPrintf("Finish initializing lattice")
 	})
 }
 
@@ -133,14 +93,17 @@ func (l *Lattice) getDataFromBlock(block *Block, allowDepth uint) ([]byte, error
 		}
 	}
 
-	return l.getDataFromBlockParallel(rid, block)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	return l.getDataFromBlockParallel(ctx, rid, block)
 }
 
 // getDataFromBlockSequential recovers a block with missing chunk using the lattice (single thread)
 func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth uint) (data []byte, err error) {
 	recursiveRecover := func(block *Block, allowDepth uint) {
-		var repairSuccess bool = false
-		var modifyState bool = true
+		var repairSuccess = false
+		var modifyState = true
 		defer func() {
 			if modifyState {
 				block.FinishRepair(repairSuccess)
@@ -157,23 +120,19 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 		downloadErr := l.downloadBlock(block)
 		if downloadErr == nil {
 			repairSuccess = true
-			if block.IsParity {
-				util.LogPrint(util.Magenta("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
-				return
-			}
-			util.LogPrint("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
+			printRecoverStatus(false, DownloadSuccess, block)
 			return
 		}
-		util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
+		printRecoverStatus(false, DownloadFail, block)
 
 		// repair data
 		if allowDepth == 0 {
-			util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+			printRecoverStatus(false, RepairFail, block)
 			return
 		}
 		pairs := block.GetRecoverPairs()
 		if len(pairs) == 0 {
-			util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+			printRecoverStatus(false, RepairFail, block)
 			return
 		}
 		for _, mypair := range pairs {
@@ -188,32 +147,30 @@ func (l *Lattice) getDataFromBlockSequential(rid uint, block *Block, allowDepth 
 			}
 
 			if block.Recover(leftChunk, rightChunk) == nil {
-				util.LogPrint(util.Green("{Sequential} Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
+				printRecoverStatus(false, RepairSuccess, block)
 				repairSuccess = true
 				return
 			}
 		}
-		util.LogPrint(util.Red("{Sequential} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+		printRecoverStatus(false, RepairFail, block)
 	}
 	recursiveRecover(block, allowDepth)
 
 	data, err = block.GetData()
 	if err != nil {
-		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.", block.Index, block.IsParity, block.Strand, err)
+		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.",
+			block.Index, block.IsParity, block.Strand, err)
 	}
 
 	return data, err
 }
 
 // getDataFromBlockParallel recovers a block with missing chunk using the lattice (multiple threads)
-func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte, err error) {
-	myCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func (l *Lattice) getDataFromBlockParallel(ctx context.Context, rid uint, block *Block) (data []byte, err error) {
 	var recursiveRecover func(context.Context, uint, *Block, chan bool)
 	recursiveRecover = func(ctx context.Context, rid uint, block *Block, channel chan bool) {
-		var repairSuccess bool = false
-		var modifyState bool = true
+		var repairSuccess = false
+		var modifyState = true
 		defer func() {
 			if modifyState {
 				block.FinishRepair(repairSuccess)
@@ -235,25 +192,22 @@ func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte,
 			err := l.downloadBlock(block)
 			if err == nil {
 				repairSuccess = true
-				if block.IsParity {
-					util.LogPrint(util.Magenta("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully"), block.Index, block.IsParity, block.Strand)
-					return
-				}
-				util.LogPrint("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded successfully", block.Index, block.IsParity, block.Strand)
+				printRecoverStatus(true, DownloadSuccess, block)
 				return
 			}
-			util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d downloaded fail"), block.Index, block.IsParity, block.Strand)
+			printRecoverStatus(true, DownloadFail, block)
 
 			// repair data
 			pairs := block.GetRecoverPairs()
 			if len(pairs) == 0 {
-				util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+				printRecoverStatus(true, RepairFail, block)
 				return
 			}
 			finish := make(chan bool)
 			counter := 0
 			for _, mypair := range pairs {
-				util.InfoPrint(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\nRight - Index: %d, Parity: %t, Strand: %d\n\n"),
+				util.InfoPrintf(util.Yellow("{Parallel} Left - Index: %d, Parity: %t, Strand: %d\n"+
+					"Right - Index: %d, Parity: %t, Strand: %d\n\n"),
 					mypair.Left.Index, mypair.Left.IsParity, mypair.Left.Strand,
 					mypair.Right.Index, mypair.Right.IsParity, mypair.Right.Strand)
 				go func(pair *BlockPair) {
@@ -292,12 +246,12 @@ func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte,
 				success := <-finish
 				if success {
 					repairSuccess = true
-					util.LogPrint(util.Green("{Parallel} Index: %d, Parity: %t, Strand: %d repaired successfully"), block.Index, block.IsParity, block.Strand)
+					printRecoverStatus(true, RepairSuccess, block)
 					return
 				}
 				counter++
 				if counter >= len(pairs) {
-					util.LogPrint(util.Red("{Parallel} Index: %d, Parity: %t, Strand: %d repaired fail"), block.Index, block.IsParity, block.Strand)
+					printRecoverStatus(true, RepairFail, block)
 					return
 				}
 			}
@@ -305,14 +259,68 @@ func (l *Lattice) getDataFromBlockParallel(rid uint, block *Block) (data []byte,
 	}
 
 	myChannel := make(chan bool, 1)
-	recursiveRecover(myCtx, rid, block, myChannel)
+	recursiveRecover(ctx, rid, block, myChannel)
 	<-myChannel
 	data, err = block.GetData()
 	if err != nil {
-		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.", block.Index, block.IsParity, block.Strand, err)
+		err = xerrors.Errorf("fail to recover block %d (parity: %t. strand: %d): %s.",
+			block.Index, block.IsParity, block.Strand, err)
 	}
 
 	return data, err
+}
+
+// initDataBlocks inits data blocks when init lattice
+func (l *Lattice) initDataBlocks() {
+	// Create datablocks
+	for i := 0; i < l.ChunkNum; i++ {
+		datab := NewBlock(i+1, false)
+		datab.LeftNeighbors = make([]*Block, l.Alpha)
+		datab.RightNeighbors = make([]*Block, l.Alpha)
+		l.DataBlocks = append(l.DataBlocks, datab)
+	}
+}
+
+// initParityBlocks inits parity blocks when init lattice
+func (l *Lattice) initParityBlocks() {
+	// Create parities
+	for k := 0; k < l.Alpha; k++ {
+		for i := 0; i < l.ChunkNum; i++ {
+			parityb := NewBlock(i+1, true)
+			parityb.LeftNeighbors = make([]*Block, 1)
+			parityb.RightNeighbors = make([]*Block, 1)
+			parityb.Strand = k
+			l.ParityBlocks[k] = append(l.ParityBlocks[k], parityb)
+		}
+	}
+}
+
+// initLinks inits links between data and parity blocks
+func (l *Lattice) initLinks() {
+	// Link
+	for i := 0; i < l.ChunkNum; i++ {
+		datab := l.DataBlocks[i]
+		forward := l.getForwardNeighborIndexes(i + 1)
+		for k := 0; k < l.Alpha; k++ {
+			rightParity := l.ParityBlocks[k][i]
+			rightParity.LeftNeighbors[0] = datab
+			datab.RightNeighbors[k] = rightParity
+
+			var rightDataBlock *Block
+			if l.IsValidIndex(forward[k]) {
+				rightDataBlock = l.DataBlocks[forward[k]-1]
+			} else {
+				// Wrap lattice
+				index := l.getChainStartIndexes(i + 1)[k]
+				rightDataBlock = l.DataBlocks[index-1]
+				if rightDataBlock != datab {
+					rightDataBlock.RightNeighbors[k].IsWrapModified = true
+				}
+			}
+			rightParity.RightNeighbors[0] = rightDataBlock
+			rightDataBlock.LeftNeighbors[k] = rightParity
+		}
+	}
 }
 
 // downloadBlock downloads data/parity blocks using the Getter passed in
@@ -338,4 +346,60 @@ func (l *Lattice) getRequestID() uint {
 	id := l.requestCounter
 	l.requestCounter++
 	return id
+}
+
+type RecoverStatus int
+
+const (
+	DataDownloadSuccess RecoverStatus = iota
+	DownloadSuccess
+	DownloadFail
+	RepairSuccess
+	RepairFail
+)
+
+var recoverStatusToString = map[RecoverStatus]string{
+	DownloadSuccess: "downloaded successfully",
+	DownloadFail:    "downloaded fail",
+	RepairSuccess:   "repaired successfully",
+	RepairFail:      "repaired fail",
+}
+
+var recoverStatusToColor = map[RecoverStatus][]func(...interface{}) string{
+	DownloadSuccess: {
+		util.White,
+		util.Magenta,
+	},
+	DownloadFail: {
+		util.Red,
+		util.Red,
+	},
+	RepairSuccess: {
+		util.Green,
+		util.Green,
+	},
+	RepairFail: {
+		util.Red,
+		util.Red,
+	},
+}
+
+func printRecoverStatus(isParallel bool, currStage RecoverStatus, block *Block) {
+	var mode string
+	if isParallel {
+		mode = "Parallel"
+	} else {
+		mode = "Sequential"
+	}
+
+	index := 0
+	if block.IsParity {
+		index = 1
+	}
+
+	color := recoverStatusToColor[currStage][index]
+	value := recoverStatusToString[currStage]
+
+	util.LogPrintf(color("{%s} Index: %d, Parity: %t, Strand: %d %s"),
+		mode, block.Index, block.IsParity, block.Strand, value)
 }

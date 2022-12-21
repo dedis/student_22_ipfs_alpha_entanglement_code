@@ -33,7 +33,7 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 		if err != nil {
 			return "", xerrors.Errorf("fail to download original file: %s", err)
 		}
-		util.LogPrint("Finish downloading file (no recovery)")
+		util.LogPrintf("Finish downloading file (no recovery)")
 
 		return "", nil
 	}
@@ -45,7 +45,7 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 	if err != nil {
 		return "", xerrors.Errorf("fail to download metaData: %s", err)
 	}
-	util.LogPrint("Finish downloading metaFile")
+	util.LogPrintf("Finish downloading metaFile")
 
 	/* create lattice */
 
@@ -61,7 +61,7 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 	// create lattice
 	lattice := entangler.NewLattice(metaData.Alpha, metaData.S, metaData.P, chunkNum, getter, 2)
 	lattice.Init()
-	util.LogPrint("Finish generating lattice")
+	util.LogPrintf("Finish generating lattice")
 
 	/* download & recover file from IPFS */
 
@@ -127,9 +127,9 @@ func (c *Client) Download(rootCID string, path string, option DownloadOption) (o
 	err = os.WriteFile(out, data, 0644)
 	if err == nil {
 		if repaired {
-			util.LogPrint("Finish downloading file (recovered)")
+			util.LogPrintf("Finish downloading file (recovered)")
 		} else {
-			util.LogPrint("Finish downloading file (no recovery)")
+			util.LogPrintf("Finish downloading file (no recovery)")
 		}
 	}
 

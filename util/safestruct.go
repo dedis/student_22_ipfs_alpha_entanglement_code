@@ -32,7 +32,7 @@ func (m *SafeMap) Get(key int) (val string, ok bool) {
 	defer m.RUnlock()
 
 	val, ok = m.unsafeMap[key]
-	return
+	return val, ok
 }
 
 func (m *SafeMap) GetAll() map[int]string {
