@@ -35,6 +35,7 @@ func Test_Only_Data_Loss(t *testing.T) {
 			getter, err := performance.CreateRecoverGetter(conn, metaData.DataCIDIndexMap, metaData.ParityCIDs)
 			require.NoError(t, err)
 
+			// generate random miss and repeat tests
 			for i := 0; i < try; i++ {
 				indexes := make([]int, fileinfo.TotalBlock)
 				for j := 0; j < fileinfo.TotalBlock; j++ {

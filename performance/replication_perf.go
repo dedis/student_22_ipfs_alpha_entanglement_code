@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// RepGetter handles connection to IPFS and mimics data & repetition loss
 type RepGetter struct {
 	*ipfsconnector.IPFSConnector
 
@@ -105,6 +106,7 @@ var RepRecover = func(fileinfo FileInfo,
 var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, iteration int) PerfResult {
 	avgResult := PerfResult{}
 
+	// create IPFS connector
 	conn, err := ipfsconnector.CreateIPFSConnector(0)
 	if err != nil {
 		return PerfResult{Err: err}
@@ -124,6 +126,7 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 	// create getter
 	getter := CreateRepGetter(conn, metaData.DataCIDIndexMap)
 
+	// generate random parity loss and repeat tests
 	for b := 0; b < iteration; b++ {
 		indexes := make([][]int, repFactor)
 		for i := range indexes {
@@ -178,6 +181,7 @@ var RepRecoverWithFilter = func(fileinfo FileInfo, missNum int, repFactor int, i
 }
 
 func Perf_Replication(fileCase string, missPercent float32, repFactor int, iteration int) PerfResult {
+	// check the validity of test case
 	fileinfo, ok := InfoMap[fileCase]
 	if !ok {
 		return PerfResult{Err: xerrors.Errorf("invalid test case")}
