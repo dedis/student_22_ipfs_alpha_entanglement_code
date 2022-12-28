@@ -2,7 +2,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def overhead(save):
+def download_overhead(save):
+    raw = [0.0000, 1.9200, 3.8800, 5.7200, 7.6700, 9.5500, 11.3000, 13.2700, 15.0600, 16.8500, 18.5300, 20.4600,
+           22.0500, 23.7500, 25.5700, 27.1600, 29.0900, 30.6800, 32.2800, 33.7500, 35.5200, 37.2500, 38.4500, 40.0800,
+           41.4900, 43.1100, 44.6000, 46.0300, 47.6200, 48.6900, 49.9900, 51.6100, 52.9700, 54.2800, 55.5700, 57.3700,
+           58.7700, 59.4200, 60.7300, 61.8200, 63.1900, 64.7600, 65.7700, 67.0800, 68.0900, 69.1000, 70.1400, 70.9300,
+           71.9400, 73.3400, 74.5100, 74.9500, 75.9500, 76.9000, 78.3600, 79.1900, 80.3200, 81.0600, 81.6500, 82.4800,
+           83.7200, 83.9600, 84.6500, 85.9300, 86.3300, 87.3500, 87.8600, 88.3300, 89.1100, 89.8700, 90.0700, 91.0100,
+           91.2900, 92.3900, 93.3100, 93.4600, 94.1000, 94.5400, 95.2000, 95.3900, 96.1100, 96.0200, 96.9300, 97.3200,
+           97.7400, 97.7500, 98.2800, 98.6400, 98.9500, 99.2100, 99.3500, 99.5500, 99.9600, 100.3600, 100.0400,
+           100.5300, 100.4800, 100.6900, 100.7500, 100.8800, 100.9600, 101.0000]
+    all_data = [r / 101 for r in raw]
+    y_data = np.array(all_data)
+    x_data = [i / (len(y_data) - 1) * 100 for i in range(len(y_data))]
+
+    plt.plot(x_data, y_data, label="Only data loss")
+    plt.xlim([0, 100])
+    plt.ylim(0)
+    plt.xlabel('Percentage of Data Loss')
+    plt.ylabel('Average Download Parity Blocks Ratio')
+    plt.title("Part of Data Missing and All Parity Present")
+    if save is False:
+        plt.show()
+    else:
+        plt.savefig('results/only_data_download_overhead.png', bbox_inches='tight')
+        plt.clf()
+
+
+def memory_overhead(save):
     raw = [0.0000, 1.9500, 3.8900, 5.8000, 7.6800, 9.6100, 11.5200, 13.3000, 15.0400, 16.7800, 18.6200, 20.1700,
            22.2100, 23.8700, 25.5900, 27.4100, 29.0200, 30.6200, 32.3600, 33.8400, 35.3100, 37.0200, 38.5000, 40.0700,
            41.7000, 43.2500, 44.1300, 46.0200, 47.3600, 49.0400, 50.3500, 51.6200, 53.0100, 54.6500, 55.6700, 56.4400,
@@ -20,10 +47,10 @@ def overhead(save):
     plt.xlim([0, 100])
     plt.ylim(0)
     plt.xlabel('Percentage of Data Loss')
-    plt.ylabel('Average Download Parity Blocks Ratio')
+    plt.ylabel('Average In-Memory Parity Blocks Ratio')
     plt.title("Part of Data Missing and All Parity Present")
     if save is False:
         plt.show()
     else:
-        plt.savefig('results/only_data_overhead.png', bbox_inches='tight')
+        plt.savefig('results/only_data_memory_overhead.png', bbox_inches='tight')
         plt.clf()
