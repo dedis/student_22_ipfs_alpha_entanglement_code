@@ -24,7 +24,9 @@ The figure below illustrates the IPFS Community framework. By interacting with t
 ## Run the Program
 
 #### Prerequisite
-You have to have at least one IPFS node running on your computer (either from IPFS daemon, docker, or ...), which allows you to upload and download from the IPFS network. You could also set up an IPFS Cluster, using the `docker-compose.yml` in the directory. You could change the number of cluster peers you want to support inside the file.
+* You have to have at least one IPFS node running on your computer. Any one of the following is fine: IPFS desktop, IPFS command line, IPFS docker. It will allow you to upload and download from the IPFS network. Whether IPFS network is public or not does not influence the usage.
+
+* You should also set up an IPFS Cluster. You could use the `docker-compose.yml` in the directory. It will run 10 IPFS Cluster nodes together with 10 IPFS nodes inside docker. If you are using `docker-compose.yml`, it is not necessary that you have a IPFS node running. You could change the number of cluster peers you want to support inside the file, by adding or deleting `services`.
 
 #### Commands
 
