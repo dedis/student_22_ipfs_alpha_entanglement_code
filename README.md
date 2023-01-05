@@ -45,3 +45,6 @@ To do performance test:
 go run main.go perf recover -t <test_case> -p <loss_percent_of_parities> -i <iteration>
 go run main.go perf rep -t <test_case> -p <loss_percent_of_replication> -i <iteration> -r <replication_factor>
 ```
+
+## Performance Evaluation Results
+The results of the performance evaluation could be found in folder `test/performance/data_plot`. It uses matplotlib in Python for the result generation, the entry point is `main.py`.
